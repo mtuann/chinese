@@ -32,18 +32,30 @@
 
 4. `Grammar by Level`
 - Ngữ pháp chia theo HSK 1-6 và 7-9
+- Filter theo `Only this level` hoặc `Up to this level`
 - Có pinyin cho tiêu đề và ví dụ ngữ pháp (có thể bật/tắt trong app)
 - Tìm kiếm theo mã/tên/nhóm
 - Đánh dấu mastered
 - Grammar quick quiz
 
-5. `Intensive Lab`
+5. `Vocabulary by Level`
+- Học từ vựng theo level với lọc `Only this level` hoặc `Up to this level`
+- Filter theo bộ thủ, tìm theo từ/pinyin/nghĩa, và phân trang
+- Đánh dấu từ đã mastered để theo dõi tiến độ
+
+6. `Pronunciation Guide`
+- Bảng đầy đủ thanh điệu, initials, finals
+- Hướng dẫn vị trí phát âm song ngữ Việt/Anh
+- Có mục cặp âm dễ nhầm cho người Việt
+
+7. `Intensive Lab`
 - Mục tiêu học mỗi ngày (bộ thủ, ngữ pháp, dictation)
+- Mục tiêu từ vựng mỗi ngày
 - Focus timer (Pomodoro)
 - Sổ lỗi sai (mistake notebook)
 - Export/Import tiến độ dạng JSON
 
-6. `PWA (Progressive Web App)`
+8. `PWA (Progressive Web App)`
 - Cài được trên Android và iOS (Safari)
 - Chạy offline nhờ service worker + cache thông minh
 - Có install prompt (khi trình duyệt hỗ trợ)

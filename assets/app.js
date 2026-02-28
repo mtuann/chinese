@@ -8,17 +8,184 @@ const DATA_FILES = {
 const LEVELS = [1, 2, 3, 4, 5, 6, 7];
 const STORAGE_KEY = "hsk_intensive_studio_v1";
 const SRS_INTERVALS = [1, 3, 7, 14, 30, 45];
+const VOCAB_PAGE_SIZE = 36;
+
+const PRONUNCIATION_DATA = {
+  tones: [
+    {
+      tone: "1st tone",
+      mark: "ˉ",
+      contour: "55 (high-level)",
+      sample: "mā",
+      vi: "Giữ cao và đều, không lên/xuống.",
+      en: "Keep your pitch high and steady.",
+    },
+    {
+      tone: "2nd tone",
+      mark: "ˊ",
+      contour: "35 (rising)",
+      sample: "má",
+      vi: "Đi từ trung bình lên cao, giống ngữ điệu hỏi ngắn.",
+      en: "Rise from mid to high, similar to a short question intonation.",
+    },
+    {
+      tone: "3rd tone",
+      mark: "ˇ",
+      contour: "214 (fall-rise)",
+      sample: "mǎ",
+      vi: "Rơi xuống rồi nhấc lên; trong câu nhanh thường chỉ đọc thấp.",
+      en: "Falls then rises; in fast speech often realized as a low tone.",
+    },
+    {
+      tone: "4th tone",
+      mark: "ˋ",
+      contour: "51 (falling)",
+      sample: "mà",
+      vi: "Rơi mạnh và dứt khoát từ cao xuống thấp.",
+      en: "Sharp, strong fall from high to low.",
+    },
+    {
+      tone: "Neutral tone",
+      mark: "·",
+      contour: "light",
+      sample: "ma",
+      vi: "Âm nhẹ, ngắn, phụ thuộc âm trước.",
+      en: "Light and short; pitch depends on preceding syllable.",
+    },
+  ],
+  initials: [
+    { s: "b", vi: "Môi khép bật nhẹ, vô thanh", en: "Unaspirated voiceless bilabial stop", ex: "bā" },
+    { s: "p", vi: "Như b nhưng bật hơi mạnh", en: "Aspirated bilabial stop", ex: "pā" },
+    { s: "m", vi: "Mũi môi", en: "Bilabial nasal", ex: "mā" },
+    { s: "f", vi: "Răng trên chạm môi dưới", en: "Labiodental fricative", ex: "fā" },
+    { s: "d", vi: "Đầu lưỡi chạm lợi trên, không bật hơi", en: "Unaspirated alveolar stop", ex: "dā" },
+    { s: "t", vi: "Như d nhưng bật hơi mạnh", en: "Aspirated alveolar stop", ex: "tā" },
+    { s: "n", vi: "Âm mũi đầu lưỡi", en: "Alveolar nasal", ex: "nā" },
+    { s: "l", vi: "Bên lưỡi", en: "Alveolar lateral", ex: "lā" },
+    { s: "g", vi: "Cuống lưỡi, không bật hơi", en: "Unaspirated velar stop", ex: "gē" },
+    { s: "k", vi: "Như g nhưng bật hơi", en: "Aspirated velar stop", ex: "kē" },
+    { s: "h", vi: "Ma sát họng mềm", en: "Velar fricative", ex: "hē" },
+    { s: "j", vi: "Mặt lưỡi trước, môi không tròn", en: "Alveolo-palatal (unaspirated)", ex: "jī" },
+    { s: "q", vi: "Như j nhưng bật hơi mạnh", en: "Alveolo-palatal aspirated", ex: "qī" },
+    { s: "x", vi: "Ma sát mặt lưỡi trước", en: "Alveolo-palatal fricative", ex: "xī" },
+    { s: "zh", vi: "Uốn lưỡi sau, không bật hơi", en: "Retroflex affricate (unaspirated)", ex: "zhī" },
+    { s: "ch", vi: "Như zh nhưng bật hơi", en: "Retroflex affricate (aspirated)", ex: "chī" },
+    { s: "sh", vi: "Ma sát uốn lưỡi sau", en: "Retroflex fricative", ex: "shī" },
+    { s: "r", vi: "Uốn lưỡi nhẹ, âm gần /ʐ/", en: "Voiced retroflex fricative/approximant", ex: "rì" },
+    { s: "z", vi: "Đầu lưỡi, không bật hơi", en: "Alveolar affricate (unaspirated)", ex: "zī" },
+    { s: "c", vi: "Như z nhưng bật hơi", en: "Alveolar affricate (aspirated)", ex: "cī" },
+    { s: "s", vi: "Ma sát đầu lưỡi", en: "Alveolar fricative", ex: "sī" },
+    { s: "y", vi: "Bán nguyên âm, thường trước i/ü", en: "Semivowel spelling initial", ex: "yī" },
+    { s: "w", vi: "Bán nguyên âm, thường trước u", en: "Semivowel spelling initial", ex: "wū" },
+  ],
+  finals: [
+    { s: "a", vi: "Mở rộng miệng", en: "Open central vowel", ex: "a" },
+    { s: "o", vi: "Môi tròn vừa", en: "Mid-back rounded vowel", ex: "bo" },
+    { s: "e", vi: "Âm giữa hơi lùi", en: "Mid central/back vowel", ex: "de" },
+    { s: "i", vi: "Nguyên âm trước khép", en: "High front vowel", ex: "mi" },
+    { s: "u", vi: "Môi tròn, lưỡi sau", en: "High back rounded vowel", ex: "du" },
+    { s: "ü", vi: "Như i nhưng tròn môi", en: "High front rounded vowel", ex: "nǚ" },
+    { s: "er", vi: "Âm /ɚ/ có màu r", en: "Rhotic vowel", ex: "ér" },
+    { s: "ai", vi: "a -> i", en: "Diphthong a+i", ex: "hái" },
+    { s: "ei", vi: "e -> i", en: "Diphthong e+i", ex: "wéi" },
+    { s: "ao", vi: "a -> o/u", en: "Diphthong a+o", ex: "hǎo" },
+    { s: "ou", vi: "o -> u", en: "Diphthong o+u", ex: "dōu" },
+    { s: "an", vi: "a + n", en: "Front nasal ending -n", ex: "hàn" },
+    { s: "en", vi: "e + n", en: "Front nasal ending -n", ex: "hěn" },
+    { s: "ang", vi: "a + ng", en: "Back nasal ending -ng", ex: "máng" },
+    { s: "eng", vi: "e + ng", en: "Back nasal ending -ng", ex: "néng" },
+    { s: "ong", vi: "o + ng", en: "Back nasal ending -ng", ex: "dōng" },
+    { s: "ia", vi: "i + a", en: "Medial i + a", ex: "jiā" },
+    { s: "ie", vi: "i + e", en: "Medial i + e", ex: "xiè" },
+    { s: "iao", vi: "i + ao", en: "Medial i + ao", ex: "xiǎo" },
+    { s: "iu (iou)", vi: "i + ou (viết tắt iu)", en: "Contracted iou", ex: "liù" },
+    { s: "ian", vi: "i + an", en: "Front nasal with i", ex: "tiān" },
+    { s: "in", vi: "i + n", en: "Front nasal with i", ex: "xīn" },
+    { s: "iang", vi: "i + ang", en: "Back nasal with i", ex: "liàng" },
+    { s: "ing", vi: "i + ng", en: "Back nasal with i", ex: "míng" },
+    { s: "iong", vi: "i + ong", en: "Back nasal with i", ex: "xiōng" },
+    { s: "ua", vi: "u + a", en: "Medial u + a", ex: "huā" },
+    { s: "uo", vi: "u + o", en: "Medial u + o", ex: "duō" },
+    { s: "uai", vi: "u + ai", en: "Medial u + ai", ex: "kuài" },
+    { s: "ui (uei)", vi: "u + ei (viết tắt ui)", en: "Contracted uei", ex: "duì" },
+    { s: "uan", vi: "u + an", en: "Front nasal with u", ex: "huān" },
+    { s: "un (uen)", vi: "u + en (viết tắt un)", en: "Contracted uen", ex: "lùn" },
+    { s: "uang", vi: "u + ang", en: "Back nasal with u", ex: "guāng" },
+    { s: "ueng", vi: "Hiếm, thường trong wēng", en: "Rare full form", ex: "wēng" },
+    { s: "üe", vi: "ü + e", en: "Front rounded final", ex: "xué" },
+    { s: "üan", vi: "ü + an", en: "Front rounded + nasal", ex: "juàn" },
+    { s: "ün", vi: "ü + n", en: "Front rounded + nasal", ex: "yún" },
+    { s: "-i (zhi/chi/shi/ri)", vi: "Âm i lưỡi cong", en: "Apical vowel after retroflex initials", ex: "shī" },
+    { s: "-i (zi/ci/si)", vi: "Âm i đầu lưỡi trước", en: "Apical vowel after alveolar initials", ex: "sī" },
+    { s: "erhua -r", vi: "Gắn -r ở cuối một số âm tiết", en: "Rhotic suffix in northern Mandarin", ex: "huār" },
+  ],
+  pairs: [
+    {
+      pair: "zh / z",
+      vi: "zh: uốn lưỡi ra sau; z: đầu lưỡi trước, không uốn.",
+      en: "zh is retroflex; z is alveolar.",
+      ex: "zhī vs zī",
+    },
+    {
+      pair: "ch / c",
+      vi: "Cả hai bật hơi, nhưng ch uốn lưỡi sau hơn c.",
+      en: "Both aspirated; ch is retroflex, c is alveolar.",
+      ex: "chī vs cī",
+    },
+    {
+      pair: "sh / s",
+      vi: "sh ma sát khi lưỡi uốn; s ma sát phía trước.",
+      en: "sh retroflex fricative vs s alveolar fricative.",
+      ex: "shī vs sī",
+    },
+    {
+      pair: "j/q/x vs zh/ch/sh",
+      vi: "j/q/x đặt mặt lưỡi trước và môi không tròn; zh/ch/sh uốn lưỡi.",
+      en: "j/q/x are alveolo-palatal; zh/ch/sh are retroflex.",
+      ex: "jī qī xī vs zhī chī shī",
+    },
+    {
+      pair: "n / ng ending",
+      vi: "-n kết thúc trước (an/en/in/un), -ng kết thúc sau (ang/eng/ing/ong).",
+      en: "-n front nasal, -ng back nasal.",
+      ex: "ān vs āng",
+    },
+    {
+      pair: "ü / u",
+      vi: "ü: môi tròn nhưng lưỡi trước; u: môi tròn lưỡi sau.",
+      en: "ü front rounded; u back rounded.",
+      ex: "lǜ vs lù",
+    },
+    {
+      pair: "b/p, d/t, g/k",
+      vi: "Phân biệt bằng bật hơi, không phải hữu thanh-vô thanh.",
+      en: "Contrast is aspiration, not voicing.",
+      ex: "bā/pā, dā/tā, gē/kē",
+    },
+    {
+      pair: "r / l",
+      vi: "r tiếng Quan thoại khác r tiếng Việt; thường ma sát/tiệm cận uốn nhẹ.",
+      en: "Mandarin r is a retroflex approximant/fricative, not English r.",
+      ex: "rì vs lì",
+    },
+  ],
+};
 
 const state = {
   data: {
     radicals: [],
     wordsByLevel: {},
+    allWords: [],
     grammar: [],
     meta: null,
   },
   progress: null,
   currentQuiz: null,
   currentGrammarQuiz: null,
+  vocab: {
+    page: 1,
+    totalPages: 1,
+  },
   timer: {
     remaining: 25 * 60,
     running: false,
@@ -33,6 +200,7 @@ const state = {
 function defaultProgress() {
   return {
     radicals: {},
+    words: {},
     grammar: {},
     quizStats: {
       correct: 0,
@@ -41,6 +209,7 @@ function defaultProgress() {
     dailyTargets: {
       radicals: 6,
       grammar: 6,
+      words: 25,
       dictation: 25,
     },
     dailyLog: {},
@@ -54,6 +223,7 @@ function mergeWithDefaults(raw) {
   if (!raw || typeof raw !== "object") return merged;
 
   merged.radicals = raw.radicals || {};
+  merged.words = raw.words || {};
   merged.grammar = raw.grammar || {};
   merged.quizStats = {
     ...merged.quizStats,
@@ -97,6 +267,7 @@ function ensureDailyLog() {
     state.progress.dailyLog[key] = {
       radicals: 0,
       grammar: 0,
+      words: 0,
       dictation: 0,
       minutes: 0,
     };
@@ -265,7 +436,12 @@ function streakDays() {
     const key = `${cursor.getFullYear()}-${`${cursor.getMonth() + 1}`.padStart(2, "0")}-${`${cursor.getDate()}`.padStart(2, "0")}`;
     const day = state.progress.dailyLog[key];
     if (!day) break;
-    const score = (day.radicals || 0) + (day.grammar || 0) + (day.dictation || 0) + (day.minutes || 0);
+    const score =
+      (day.radicals || 0) +
+      (day.grammar || 0) +
+      (day.words || 0) +
+      (day.dictation || 0) +
+      (day.minutes || 0);
     if (score <= 0) break;
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
@@ -305,6 +481,20 @@ function getDueItems(limit = 40) {
     }
   });
 
+  Object.entries(state.progress.words).forEach(([id, rec]) => {
+    if (isDue(rec)) {
+      const word = allWords().find((w) => w.id === id);
+      if (word) {
+        items.push({
+          type: "word",
+          id,
+          label: `${word.word} (${word.pinyin || "-"})`,
+          due: rec.nextDue,
+        });
+      }
+    }
+  });
+
   items.sort((a, b) => new Date(a.due) - new Date(b.due));
   return items.slice(0, limit);
 }
@@ -317,11 +507,21 @@ function grammarMasteredCount() {
   return Object.values(state.progress.grammar).filter((rec) => rec.mastered).length;
 }
 
+function wordMasteredCount() {
+  return Object.values(state.progress.words).filter((rec) => rec.mastered).length;
+}
+
+function allWords() {
+  return state.data.allWords || [];
+}
+
 function renderDashboard() {
   const stats = document.getElementById("dashboard-stats");
   const totalRadicals = state.data.radicals.length;
+  const totalWords = allWords().length;
   const totalGrammar = state.data.grammar.length;
   const masteredRadicals = radicalMasteredCount();
+  const masteredWords = wordMasteredCount();
   const masteredGrammar = grammarMasteredCount();
   const quizCorrect = state.progress.quizStats.correct || 0;
   const quizWrong = state.progress.quizStats.wrong || 0;
@@ -337,6 +537,11 @@ function renderDashboard() {
       <div class="label">Grammar Mastered</div>
       <div class="value">${masteredGrammar}/${totalGrammar}</div>
       <div class="muted">${formatPct(masteredGrammar, totalGrammar)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Words Mastered</div>
+      <div class="value">${masteredWords}/${totalWords}</div>
+      <div class="muted">${formatPct(masteredWords, totalWords)}</div>
     </div>
     <div class="stat-card">
       <div class="label">Quiz Accuracy</div>
@@ -375,6 +580,11 @@ function renderDashboard() {
       const rec = state.progress.grammar[g.id];
       return rec && rec.mastered;
     }).length;
+    const wordsPool = state.data.wordsByLevel[key] || [];
+    const masteredWordsAtLevel = wordsPool.filter((w) => {
+      const rec = state.progress.words[w.id];
+      return rec && rec.mastered;
+    }).length;
 
     const card = document.createElement("article");
     card.className = "level-card";
@@ -385,6 +595,8 @@ function renderDashboard() {
       <div class="small-row"><span>Radicals introduced:</span><strong>${levelMeta.radicals_introduced}</strong></div>
       <div class="small-row"><span>Radicals mastered:</span><strong>${masteredRadicalsAtLevel}/${availableRadicals.length}</strong></div>
       <div class="progress-bar"><div class="progress-fill" style="width:${formatPct(masteredRadicalsAtLevel, Math.max(availableRadicals.length, 1))}"></div></div>
+      <div class="small-row"><span>Words mastered:</span><strong>${masteredWordsAtLevel}/${wordsPool.length}</strong></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${formatPct(masteredWordsAtLevel, Math.max(wordsPool.length, 1))}"></div></div>
       <div class="small-row"><span>Grammar mastered:</span><strong>${masteredGrammarAtLevel}/${grammarPool.length}</strong></div>
       <div class="progress-bar"><div class="progress-fill" style="width:${formatPct(masteredGrammarAtLevel, Math.max(grammarPool.length, 1))}"></div></div>
     `;
@@ -400,7 +612,9 @@ function renderDashboard() {
       .map(
         (item) => `
         <div class="due-item">
-          <span>${item.type === "radical" ? "Radical" : "Grammar"}: ${item.label}</span>
+          <span>${
+            item.type === "radical" ? "Radical" : item.type === "grammar" ? "Grammar" : "Word"
+          }: ${item.label}</span>
           <span class="muted">${new Date(item.due).toLocaleDateString()}</span>
         </div>
       `
@@ -527,6 +741,226 @@ function getWordsForFilters(levelValue, radicalFilter) {
   return pool;
 }
 
+function getWordsByLevelAndMode(levelValue, mode) {
+  if (levelValue === "all") {
+    return [...allWords()];
+  }
+
+  const lv = Number(levelValue);
+  if (mode === "upto") {
+    let out = [];
+    LEVELS.filter((x) => x <= lv).forEach((x) => {
+      out = out.concat(state.data.wordsByLevel[String(x)] || []);
+    });
+    return out;
+  }
+  return [...(state.data.wordsByLevel[String(lv)] || [])];
+}
+
+function getRadicalIdeographById(id) {
+  const r = state.data.radicals.find((x) => x.id === id);
+  return r ? r.ideograph : id;
+}
+
+function refreshVocabRadicalFilter() {
+  const level = document.getElementById("vocab-level-filter").value;
+  const mode = document.getElementById("vocab-level-mode").value;
+  const select = document.getElementById("vocab-radical-filter");
+  const previous = select.value || "all";
+  const pool = getWordsByLevelAndMode(level, mode);
+
+  const used = new Set();
+  pool.forEach((w) => (w.radical_ids || []).forEach((rid) => used.add(rid)));
+  const options = ['<option value="all">All radicals</option>'];
+  [...used]
+    .sort((a, b) => a.localeCompare(b, "en"))
+    .forEach((rid) => {
+      options.push(`<option value="${rid}">${getRadicalIdeographById(rid)} · No.${rid}</option>`);
+    });
+  select.innerHTML = options.join("");
+  const optionExists = [...select.options].some((o) => o.value === previous);
+  select.value = optionExists ? previous : "all";
+}
+
+function renderVocabulary(resetPage = false) {
+  const level = document.getElementById("vocab-level-filter").value;
+  const mode = document.getElementById("vocab-level-mode").value;
+  const radical = document.getElementById("vocab-radical-filter").value;
+  const search = document.getElementById("vocab-search").value.trim().toLowerCase();
+  const showPinyin = document.getElementById("vocab-show-pinyin").checked;
+  const onlyUnlearned = document.getElementById("vocab-only-unlearned").checked;
+
+  let rows = getWordsByLevelAndMode(level, mode);
+  if (radical !== "all") {
+    rows = rows.filter((w) => (w.radical_ids || []).includes(radical));
+  }
+
+  if (search) {
+    rows = rows.filter((w) => {
+      const hay = [w.word, w.pinyin, w.meaning, ...(w.radical_ids || [])].join(" ").toLowerCase();
+      return hay.includes(search);
+    });
+  }
+
+  if (onlyUnlearned) {
+    rows = rows.filter((w) => !(state.progress.words[w.id] && state.progress.words[w.id].mastered));
+  }
+
+  rows = rows.sort((a, b) => {
+    if (a.level !== b.level) return a.level - b.level;
+    if (a.frequency !== b.frequency) return a.frequency - b.frequency;
+    return a.word.localeCompare(b.word, "zh");
+  });
+
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / VOCAB_PAGE_SIZE));
+  if (resetPage) {
+    state.vocab.page = 1;
+  } else {
+    state.vocab.page = Math.min(Math.max(1, state.vocab.page), totalPages);
+  }
+  state.vocab.totalPages = totalPages;
+
+  const from = (state.vocab.page - 1) * VOCAB_PAGE_SIZE;
+  const to = from + VOCAB_PAGE_SIZE;
+  const pageRows = rows.slice(from, to);
+
+  const info = document.getElementById("vocab-result-info");
+  info.textContent = total
+    ? `${total} words found. Showing ${from + 1}-${Math.min(to, total)}.`
+    : "0 words found.";
+
+  const list = document.getElementById("vocab-list");
+  if (!pageRows.length) {
+    list.innerHTML = '<p class="muted">No vocabulary in this filter.</p>';
+  } else {
+    list.innerHTML = pageRows
+      .map((w) => {
+        const rec = state.progress.words[w.id];
+        const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+        return `
+          <article class="vocab-card">
+            <div class="vocab-head">
+              <div>
+                <div class="vocab-word">${w.word}</div>
+                ${showPinyin ? `<div class="pinyin-line">${w.pinyin || "-"}</div>` : ""}
+                <div class="muted">${w.meaning || "-"}</div>
+                <div class="vocab-meta">${levelLabel(w.level)} · freq ${w.frequency}</div>
+                <div class="vocab-radicals">Radicals: ${radicals || "-"}</div>
+              </div>
+              <label class="checkbox-line">
+                <input type="checkbox" data-vocab-id="${w.id}" ${rec && rec.mastered ? "checked" : ""} />
+                Mastered
+              </label>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  document.getElementById("vocab-page-info").textContent = `Page ${state.vocab.page} / ${totalPages}`;
+  document.getElementById("vocab-prev-page").disabled = state.vocab.page <= 1;
+  document.getElementById("vocab-next-page").disabled = state.vocab.page >= totalPages;
+}
+
+function toggleVocabMastery(wordId, checked) {
+  if (checked) {
+    const rec = ensureReviewRecord(state.progress.words, wordId);
+    applyReview(rec, true);
+    rec.mastered = true;
+    addDaily("words", 1);
+  } else {
+    resetReviewRecord(state.progress.words, wordId);
+  }
+  saveProgress();
+  renderVocabulary();
+  renderDashboard();
+  renderIntensive();
+}
+
+function renderPronunciation() {
+  const section = document.getElementById("pron-section-filter").value;
+  const search = document.getElementById("pron-search").value.trim().toLowerCase();
+
+  const renderList = (containerId, items, mapper, sectionName) => {
+    const wrap = document.getElementById(containerId);
+    const cardWrap = document.getElementById(`${containerId.replace("-list", "-wrap")}`);
+
+    const visibleBySection = section === "all" || section === sectionName;
+    cardWrap.classList.toggle("hidden", !visibleBySection);
+    if (!visibleBySection) {
+      return;
+    }
+
+    const filtered = items.filter((item) => {
+      if (!search) return true;
+      return mapper(item).toLowerCase().includes(search);
+    });
+
+    if (!filtered.length) {
+      wrap.innerHTML = '<p class="muted">No match in this section.</p>';
+      return;
+    }
+
+    wrap.innerHTML = filtered
+      .map((item) => {
+        if (sectionName === "tones") {
+          return `
+            <div class="pron-item">
+              <div class="pron-title">${item.tone} (${item.mark}) · ${item.sample}</div>
+              <div class="pron-sub">${item.contour}</div>
+              <div class="muted">VI: ${item.vi}</div>
+              <div class="muted">EN: ${item.en}</div>
+            </div>
+          `;
+        }
+        if (sectionName === "pairs") {
+          return `
+            <div class="pron-item">
+              <div class="pron-title">${item.pair} · ${item.ex}</div>
+              <div class="muted">VI: ${item.vi}</div>
+              <div class="muted">EN: ${item.en}</div>
+            </div>
+          `;
+        }
+        return `
+          <div class="pron-item">
+            <div class="pron-title">${item.s} · ${item.ex}</div>
+            <div class="muted">VI: ${item.vi}</div>
+            <div class="muted">EN: ${item.en}</div>
+          </div>
+        `;
+      })
+      .join("");
+  };
+
+  renderList(
+    "pron-tones-list",
+    PRONUNCIATION_DATA.tones,
+    (x) => `${x.tone} ${x.mark} ${x.sample} ${x.contour} ${x.vi} ${x.en}`,
+    "tones"
+  );
+  renderList(
+    "pron-initials-list",
+    PRONUNCIATION_DATA.initials,
+    (x) => `${x.s} ${x.ex} ${x.vi} ${x.en}`,
+    "initials"
+  );
+  renderList(
+    "pron-finals-list",
+    PRONUNCIATION_DATA.finals,
+    (x) => `${x.s} ${x.ex} ${x.vi} ${x.en}`,
+    "finals"
+  );
+  renderList(
+    "pron-pairs-list",
+    PRONUNCIATION_DATA.pairs,
+    (x) => `${x.pair} ${x.ex} ${x.vi} ${x.en}`,
+    "pairs"
+  );
+}
+
 function getRadicalPoolForLevel(levelValue) {
   if (levelValue === "all") {
     return state.data.radicals.filter((r) => r.first_hsk_level !== null);
@@ -540,6 +974,7 @@ function getRadicalPoolForLevel(levelValue) {
 function refreshQuizRadicalFilter() {
   const level = document.getElementById("quiz-level").value;
   const select = document.getElementById("quiz-radical-filter");
+  const previous = select.value || "all";
 
   const pool = getRadicalPoolForLevel(level);
   const opts = ['<option value="all">All radicals</option>'];
@@ -549,6 +984,8 @@ function refreshQuizRadicalFilter() {
     );
   });
   select.innerHTML = opts.join("");
+  const optionExists = [...select.options].some((o) => o.value === previous);
+  select.value = optionExists ? previous : "all";
 }
 
 function updateQuizScoreline() {
@@ -731,6 +1168,13 @@ function handleTextAnswer() {
     expected = q.word.word;
     correct = toComparable(user) === toComparable(expected);
 
+    const wordRec = ensureReviewRecord(state.progress.words, q.word.id);
+    applyReview(wordRec, correct);
+    if (correct && wordRec.stage >= 2) {
+      wordRec.mastered = true;
+      addDaily("words", 1);
+    }
+
     (q.word.radical_ids || []).forEach((rid) => {
       const rec = ensureReviewRecord(state.progress.radicals, rid);
       applyReview(rec, correct);
@@ -758,13 +1202,15 @@ function handleTextAnswer() {
 
 function renderGrammar() {
   const level = document.getElementById("grammar-level-filter").value;
+  const mode = document.getElementById("grammar-level-mode").value;
   const search = document.getElementById("grammar-search").value.trim().toLowerCase();
   const onlyUnlearned = document.getElementById("grammar-only-unlearned").checked;
   const showPinyin = document.getElementById("grammar-show-pinyin").checked;
 
   let points = [...state.data.grammar];
   if (level !== "all") {
-    points = points.filter((p) => p.level === Number(level));
+    const lv = Number(level);
+    points = points.filter((p) => (mode === "upto" ? p.level <= lv : p.level === lv));
   }
 
   if (search) {
@@ -857,9 +1303,11 @@ function toggleGrammarMastery(grammarId, checked) {
 
 function newGrammarQuizQuestion() {
   const level = document.getElementById("grammar-level-filter").value;
+  const mode = document.getElementById("grammar-level-mode").value;
   let pool = [...state.data.grammar];
   if (level !== "all") {
-    pool = pool.filter((g) => g.level === Number(level));
+    const lv = Number(level);
+    pool = pool.filter((g) => (mode === "upto" ? g.level <= lv : g.level === lv));
   }
   if (pool.length < 4) {
     showToast("Not enough grammar points for quiz.");
@@ -939,12 +1387,14 @@ function renderIntensive() {
 
   document.getElementById("target-radicals").value = targets.radicals;
   document.getElementById("target-grammar").value = targets.grammar;
+  document.getElementById("target-words").value = targets.words;
   document.getElementById("target-dictation").value = targets.dictation;
 
   const targetProgress = document.getElementById("target-progress");
   const rows = [
     { key: "radicals", label: "Radicals", done: today.radicals || 0, goal: targets.radicals },
     { key: "grammar", label: "Grammar", done: today.grammar || 0, goal: targets.grammar },
+    { key: "words", label: "Words", done: today.words || 0, goal: targets.words },
     { key: "dictation", label: "Dictation", done: today.dictation || 0, goal: targets.dictation },
   ];
 
@@ -1045,6 +1495,7 @@ async function importProgress(file) {
 
 function refreshHeaderPills() {
   document.getElementById("pill-radical-count").textContent = `${state.data.radicals.length} radicals`;
+  document.getElementById("pill-word-count").textContent = `${allWords().length.toLocaleString()} words`;
   document.getElementById("pill-grammar-count").textContent = `${state.data.grammar.length} grammar points`;
 }
 
@@ -1164,9 +1615,12 @@ function renderAll() {
   updateNetworkStatusPill();
   renderDashboard();
   renderRadicals();
+  refreshVocabRadicalFilter();
+  renderVocabulary(true);
   renderQuizQuestion();
   updateQuizScoreline();
   renderGrammar();
+  renderPronunciation();
   renderIntensive();
   refreshQuizRadicalFilter();
 }
@@ -1257,7 +1711,35 @@ function setupEventHandlers() {
     newQuizQuestion();
   });
 
-  ["grammar-level-filter", "grammar-search", "grammar-only-unlearned", "grammar-show-pinyin"].forEach((id) => {
+  ["vocab-level-filter", "vocab-level-mode"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", () => {
+      refreshVocabRadicalFilter();
+      renderVocabulary(true);
+    });
+  });
+
+  ["vocab-radical-filter", "vocab-search", "vocab-show-pinyin", "vocab-only-unlearned"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", () => renderVocabulary(true));
+    document.getElementById(id).addEventListener("change", () => renderVocabulary(true));
+  });
+
+  document.getElementById("vocab-list").addEventListener("change", (e) => {
+    const input = e.target.closest("input[data-vocab-id]");
+    if (!input) return;
+    toggleVocabMastery(input.dataset.vocabId, input.checked);
+  });
+
+  document.getElementById("vocab-prev-page").addEventListener("click", () => {
+    state.vocab.page = Math.max(1, state.vocab.page - 1);
+    renderVocabulary();
+  });
+
+  document.getElementById("vocab-next-page").addEventListener("click", () => {
+    state.vocab.page = Math.min(state.vocab.totalPages, state.vocab.page + 1);
+    renderVocabulary();
+  });
+
+  ["grammar-level-filter", "grammar-level-mode", "grammar-search", "grammar-only-unlearned", "grammar-show-pinyin"].forEach((id) => {
     document.getElementById(id).addEventListener("input", renderGrammar);
     document.getElementById(id).addEventListener("change", renderGrammar);
   });
@@ -1280,14 +1762,21 @@ function setupEventHandlers() {
     handleGrammarQuizOption(btn.dataset.grammarOption);
   });
 
+  ["pron-section-filter", "pron-search"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", renderPronunciation);
+    document.getElementById(id).addEventListener("change", renderPronunciation);
+  });
+
   document.getElementById("save-targets").addEventListener("click", () => {
     const radicals = Number(document.getElementById("target-radicals").value || 0);
     const grammar = Number(document.getElementById("target-grammar").value || 0);
+    const words = Number(document.getElementById("target-words").value || 0);
     const dictation = Number(document.getElementById("target-dictation").value || 0);
 
     state.progress.dailyTargets = {
       radicals: Math.max(1, radicals || 1),
       grammar: Math.max(1, grammar || 1),
+      words: Math.max(1, words || 1),
       dictation: Math.max(1, dictation || 1),
     };
     saveProgress();
@@ -1339,10 +1828,12 @@ async function init() {
 
   state.data.radicals = radicalData.radicals || [];
   state.data.wordsByLevel = wordData.levels || {};
+  state.data.allWords = LEVELS.flatMap((level) => state.data.wordsByLevel[String(level)] || []);
   state.data.grammar = grammarData.points || [];
   state.data.meta = metaData;
 
   buildLevelOptions(document.getElementById("radical-level-filter"));
+  buildLevelOptions(document.getElementById("vocab-level-filter"));
   buildLevelOptions(document.getElementById("quiz-level"));
   buildLevelOptions(document.getElementById("grammar-level-filter"));
 

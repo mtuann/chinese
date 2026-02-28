@@ -28,10 +28,11 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">HSK Intensive Studio</p>
-        <h1>Radicals + Grammar + Dictation</h1>
+        <h1>Radicals + Vocabulary + Grammar + Pronunciation</h1>
       </div>
       <div class="pill-group">
         <span class="pill" id="pill-radical-count">246 radicals</span>
+        <span class="pill" id="pill-word-count">10,969 words</span>
         <span class="pill" id="pill-grammar-count">570 grammar points</span>
         <span class="pill" id="pill-network-status">Online</span>
         <button class="btn btn-secondary hidden" id="install-app-btn">Install App</button>
@@ -42,8 +43,10 @@
       <nav class="nav-panel" id="main-nav">
         <button class="nav-btn active" data-tab="dashboard">Overview</button>
         <button class="nav-btn" data-tab="radicals">Radicals</button>
+        <button class="nav-btn" data-tab="vocab">Vocabulary</button>
         <button class="nav-btn" data-tab="quiz">Quiz & Dictation</button>
         <button class="nav-btn" data-tab="grammar">Grammar</button>
+        <button class="nav-btn" data-tab="pronunciation">Pronunciation</button>
         <button class="nav-btn" data-tab="intensive">Intensive Lab</button>
       </nav>
 
@@ -151,6 +154,55 @@
           </div>
         </section>
 
+        <section class="tab" id="tab-vocab">
+          <div class="section-head">
+            <h2>Vocabulary by HSK Level</h2>
+            <p>Learn and review HSK vocabulary by level, with pinyin, meaning, and radical links.</p>
+          </div>
+
+          <div class="controls-grid">
+            <label>
+              Level
+              <select id="vocab-level-filter">
+                <option value="all">All levels</option>
+              </select>
+            </label>
+            <label>
+              Filter mode
+              <select id="vocab-level-mode">
+                <option value="exact">Only this level</option>
+                <option value="upto">Up to this level</option>
+              </select>
+            </label>
+            <label>
+              Radical filter
+              <select id="vocab-radical-filter">
+                <option value="all">All radicals</option>
+              </select>
+            </label>
+            <label>
+              Search
+              <input id="vocab-search" type="search" placeholder="word / pinyin / meaning" />
+            </label>
+            <label class="checkbox-line">
+              <input id="vocab-show-pinyin" type="checkbox" checked />
+              Show pinyin
+            </label>
+            <label class="checkbox-line">
+              <input id="vocab-only-unlearned" type="checkbox" />
+              Only unlearned
+            </label>
+          </div>
+
+          <p class="result-info" id="vocab-result-info"></p>
+          <div id="vocab-list" class="vocab-list"></div>
+          <div class="pager">
+            <button class="btn btn-secondary" id="vocab-prev-page">Previous</button>
+            <span id="vocab-page-info" class="muted">Page 1 / 1</span>
+            <button class="btn btn-secondary" id="vocab-next-page">Next</button>
+          </div>
+        </section>
+
         <section class="tab" id="tab-grammar">
           <div class="section-head">
             <h2>Grammar by HSK Level</h2>
@@ -162,6 +214,13 @@
               Level
               <select id="grammar-level-filter">
                 <option value="all">All levels</option>
+              </select>
+            </label>
+            <label>
+              Filter mode
+              <select id="grammar-level-mode">
+                <option value="exact">Only this level</option>
+                <option value="upto">Up to this level</option>
               </select>
             </label>
             <label>
@@ -195,6 +254,52 @@
           </div>
         </section>
 
+        <section class="tab" id="tab-pronunciation">
+          <div class="section-head">
+            <h2>Pronunciation Guide</h2>
+            <p>Full initials, finals, tones, and articulation tips in both Vietnamese and English.</p>
+          </div>
+
+          <div class="controls-grid">
+            <label>
+              Section
+              <select id="pron-section-filter">
+                <option value="all">All sections</option>
+                <option value="tones">Tones</option>
+                <option value="initials">Initials</option>
+                <option value="finals">Finals</option>
+                <option value="pairs">Common confusion pairs</option>
+              </select>
+            </label>
+            <label>
+              Search
+              <input id="pron-search" type="search" placeholder="sound / symbol / note" />
+            </label>
+          </div>
+
+          <div class="pron-grid">
+            <article class="panel pron-card" id="pron-tones-wrap">
+              <h3>Tones (Thanh điệu)</h3>
+              <div id="pron-tones-list" class="pron-list"></div>
+            </article>
+
+            <article class="panel pron-card" id="pron-initials-wrap">
+              <h3>Initials (Thanh mẫu)</h3>
+              <div id="pron-initials-list" class="pron-list"></div>
+            </article>
+
+            <article class="panel pron-card" id="pron-finals-wrap">
+              <h3>Finals (Vận mẫu)</h3>
+              <div id="pron-finals-list" class="pron-list"></div>
+            </article>
+
+            <article class="panel pron-card" id="pron-pairs-wrap">
+              <h3>Common Confusion Pairs</h3>
+              <div id="pron-pairs-list" class="pron-list"></div>
+            </article>
+          </div>
+        </section>
+
         <section class="tab" id="tab-intensive">
           <div class="section-head">
             <h2>Intensive Lab</h2>
@@ -212,6 +317,10 @@
                 <label>
                   Grammar points/day
                   <input id="target-grammar" type="number" min="1" max="50" />
+                </label>
+                <label>
+                  New words/day
+                  <input id="target-words" type="number" min="1" max="200" />
                 </label>
                 <label>
                   Dictation answers/day

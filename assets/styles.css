@@ -504,6 +504,86 @@ input[type="number"] {
   font-family: "Be Vietnam Pro", sans-serif;
 }
 
+.vocab-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.vocab-card {
+  border: 1px solid #ece5d9;
+  border-radius: 0.88rem;
+  padding: 0.75rem;
+  background: #fffdf8;
+}
+
+.vocab-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.vocab-word {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.vocab-meta {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.vocab-radicals {
+  margin-top: 0.2rem;
+  font-family: "Noto Serif SC", serif;
+  color: var(--accent-alt);
+  font-size: 0.9rem;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pron-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0.75rem;
+}
+
+.pron-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pron-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pron-item {
+  border: 1px solid #efe3d4;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.6rem;
+  background: #fff;
+}
+
+.pron-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 0.98rem;
+}
+
+.pron-sub {
+  margin-top: 0.1rem;
+  color: var(--accent-alt);
+  font-size: 0.82rem;
+}
+
 .intensive-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -679,6 +759,10 @@ input[type="number"] {
   }
 
   .quiz-input-wrap {
+    flex-direction: column;
+  }
+
+  .vocab-head {
     flex-direction: column;
   }
 }
