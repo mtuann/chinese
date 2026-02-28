@@ -1,0 +1,10 @@
+# local temp data sources
+.tmp_complete_hsk/
+.tmp_hsk30/
+
+# python cache
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

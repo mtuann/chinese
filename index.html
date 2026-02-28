@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#d97706" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="HSK Studio" />
+    <title>HSK Intensive Studio</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow bg-glow-a"></div>
+    <div class="bg-glow bg-glow-b"></div>
+
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">HSK Intensive Studio</p>
+        <h1>Radicals + Grammar + Dictation</h1>
+      </div>
+      <div class="pill-group">
+        <span class="pill" id="pill-radical-count">246 radicals</span>
+        <span class="pill" id="pill-grammar-count">570 grammar points</span>
+        <span class="pill" id="pill-network-status">Online</span>
+        <button class="btn btn-secondary hidden" id="install-app-btn">Install App</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <nav class="nav-panel" id="main-nav">
+        <button class="nav-btn active" data-tab="dashboard">Overview</button>
+        <button class="nav-btn" data-tab="radicals">Radicals</button>
+        <button class="nav-btn" data-tab="quiz">Quiz & Dictation</button>
+        <button class="nav-btn" data-tab="grammar">Grammar</button>
+        <button class="nav-btn" data-tab="intensive">Intensive Lab</button>
+      </nav>
+
+      <section class="content-panel">
+        <section class="tab active" id="tab-dashboard">
+          <div class="section-head">
+            <h2>Overview</h2>
+            <p>Track progress by HSK level and keep your review queue under control.</p>
+          </div>
+          <div class="stat-grid" id="dashboard-stats"></div>
+          <div class="panel">
+            <h3>Progress by Level</h3>
+            <div id="level-progress-grid" class="level-grid"></div>
+          </div>
+          <div class="panel">
+            <h3>Due Reviews</h3>
+            <div id="due-list" class="due-list"></div>
+          </div>
+        </section>
+
+        <section class="tab" id="tab-radicals">
+          <div class="section-head">
+            <h2>Radicals Explorer</h2>
+            <p>Study all radicals, then filter by HSK level introduction or cumulative coverage.</p>
+          </div>
+
+          <div class="controls-grid">
+            <label>
+              Level
+              <select id="radical-level-filter">
+                <option value="all">All levels</option>
+              </select>
+            </label>
+            <label>
+              View mode
+              <select id="radical-view-mode">
+                <option value="introduced">Introduced at level</option>
+                <option value="upto">Available up to level</option>
+                <option value="all">All 246 radicals</option>
+              </select>
+            </label>
+            <label>
+              Search
+              <input id="radical-search" type="search" placeholder="symbol / meaning / pinyin" />
+            </label>
+            <label class="checkbox-line">
+              <input id="radical-only-due" type="checkbox" />
+              Only due reviews
+            </label>
+          </div>
+
+          <p class="result-info" id="radical-result-info"></p>
+          <div id="radical-grid" class="radical-grid"></div>
+        </section>
+
+        <section class="tab" id="tab-quiz">
+          <div class="section-head">
+            <h2>Quiz & Dictation</h2>
+            <p>Practice by radical or by HSK level, then feed results into spaced repetition.</p>
+          </div>
+
+          <div class="controls-grid">
+            <label>
+              Mode
+              <select id="quiz-mode">
+                <option value="radical-mc">Radical meaning (MCQ)</option>
+                <option value="radical-dictation">Radical dictation</option>
+                <option value="word-dictation">Word dictation by level</option>
+              </select>
+            </label>
+            <label>
+              Level
+              <select id="quiz-level">
+                <option value="all">All levels</option>
+              </select>
+            </label>
+            <label>
+              Radical filter (for word dictation)
+              <select id="quiz-radical-filter">
+                <option value="all">All radicals</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="quiz-shell panel">
+            <div class="quiz-topline">
+              <h3>Practice Session</h3>
+              <p id="quiz-scoreline">Correct 0 | Wrong 0</p>
+            </div>
+
+            <button id="quiz-start" class="btn">Start / New Question</button>
+
+            <div id="quiz-question-wrap" class="quiz-question-wrap hidden">
+              <p id="quiz-question" class="quiz-question"></p>
+              <div id="quiz-options" class="quiz-options"></div>
+
+              <div id="quiz-input-wrap" class="quiz-input-wrap hidden">
+                <input id="quiz-answer-input" type="text" placeholder="Type your answer in Hanzi" autocomplete="off" />
+                <button id="quiz-submit" class="btn btn-secondary">Submit</button>
+              </div>
+
+              <p id="quiz-feedback" class="quiz-feedback"></p>
+              <button id="quiz-next" class="btn btn-secondary hidden">Next</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab" id="tab-grammar">
+          <div class="section-head">
+            <h2>Grammar by HSK Level</h2>
+            <p>Use official HSK 3.0 grammar point lists and mark mastery as you progress.</p>
+          </div>
+
+          <div class="controls-grid">
+            <label>
+              Level
+              <select id="grammar-level-filter">
+                <option value="all">All levels</option>
+              </select>
+            </label>
+            <label>
+              Search
+              <input id="grammar-search" type="search" placeholder="code / title / category" />
+            </label>
+            <label class="checkbox-line">
+              <input id="grammar-show-pinyin" type="checkbox" checked />
+              Hiển thị pinyin
+            </label>
+            <label class="checkbox-line">
+              <input id="grammar-only-unlearned" type="checkbox" />
+              Only unlearned
+            </label>
+          </div>
+
+          <p class="result-info" id="grammar-result-info"></p>
+          <div id="grammar-list" class="grammar-list"></div>
+
+          <div class="panel">
+            <div class="quiz-topline">
+              <h3>Grammar Quick Quiz</h3>
+              <button id="grammar-quiz-start" class="btn">Start</button>
+            </div>
+            <div id="grammar-quiz-wrap" class="hidden">
+              <p id="grammar-quiz-question" class="quiz-question"></p>
+              <div id="grammar-quiz-options" class="quiz-options"></div>
+              <p id="grammar-quiz-feedback" class="quiz-feedback"></p>
+              <button id="grammar-quiz-next" class="btn btn-secondary hidden">Next</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab" id="tab-intensive">
+          <div class="section-head">
+            <h2>Intensive Lab</h2>
+            <p>Daily targets, timer, mistake notebook, and progress backup.</p>
+          </div>
+
+          <div class="intensive-grid">
+            <div class="panel">
+              <h3>Daily Targets</h3>
+              <div class="controls-grid compact">
+                <label>
+                  New radicals/day
+                  <input id="target-radicals" type="number" min="1" max="50" />
+                </label>
+                <label>
+                  Grammar points/day
+                  <input id="target-grammar" type="number" min="1" max="50" />
+                </label>
+                <label>
+                  Dictation answers/day
+                  <input id="target-dictation" type="number" min="1" max="200" />
+                </label>
+              </div>
+              <button id="save-targets" class="btn">Save targets</button>
+
+              <div class="target-progress" id="target-progress"></div>
+            </div>
+
+            <div class="panel">
+              <h3>Focus Timer</h3>
+              <p class="timer-display" id="timer-display">25:00</p>
+              <div class="timer-actions">
+                <button id="timer-start" class="btn">Start</button>
+                <button id="timer-pause" class="btn btn-secondary">Pause</button>
+                <button id="timer-reset" class="btn btn-secondary">Reset</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Mistake Notebook</h3>
+              <div id="mistake-list" class="mistake-list"></div>
+            </div>
+
+            <div class="panel">
+              <h3>Backup Progress</h3>
+              <p class="muted">Export or import your local progress JSON.</p>
+              <div class="timer-actions">
+                <button id="export-progress" class="btn">Export</button>
+                <label class="btn btn-secondary file-btn">
+                  Import
+                  <input id="import-progress" type="file" accept="application/json" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="update-banner hidden" id="update-banner">
+      <span>Có phiên bản mới. Bấm cập nhật để tải bản mới nhất.</span>
+      <button class="btn btn-secondary" id="update-reload-btn">Cập nhật</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module" src="./assets/app.js"></script>
+  </body>
+</html>

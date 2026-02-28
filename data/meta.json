@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-02-28T00:17:12Z",
+  "levels": {
+    "1": {
+      "words": 506,
+      "grammar_points": 48,
+      "radicals_introduced": 112,
+      "radicals_available_cumulative": 112
+    },
+    "2": {
+      "words": 750,
+      "grammar_points": 81,
+      "radicals_introduced": 34,
+      "radicals_available_cumulative": 146
+    },
+    "3": {
+      "words": 953,
+      "grammar_points": 81,
+      "radicals_introduced": 23,
+      "radicals_available_cumulative": 169
+    },
+    "4": {
+      "words": 972,
+      "grammar_points": 75,
+      "radicals_introduced": 14,
+      "radicals_available_cumulative": 183
+    },
+    "5": {
+      "words": 1059,
+      "grammar_points": 71,
+      "radicals_introduced": 8,
+      "radicals_available_cumulative": 191
+    },
+    "6": {
+      "words": 1123,
+      "grammar_points": 66,
+      "radicals_introduced": 4,
+      "radicals_available_cumulative": 195
+    },
+    "7": {
+      "words": 5606,
+      "grammar_points": 148,
+      "radicals_introduced": 14,
+      "radicals_available_cumulative": 209
+    }
+  },
+  "totals": {
+    "radicals": 246,
+    "words": 10969,
+    "grammar_points": 570
+  },
+  "sources": {
+    "radicals": [
+      "https://www.unicode.org/Public/UCD/latest/ucd/CJKRadicals.txt",
+      "https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip"
+    ],
+    "words": [
+      "https://github.com/drkameleon/complete-hsk-vocabulary"
+    ],
+    "grammar": [
+      "https://github.com/krmanik/HSK-3.0",
+      "https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf",
+      "https://github.com/mozillazg/python-pinyin"
+    ]
+  }
+}
