@@ -195,7 +195,73 @@
           </div>
 
           <p class="result-info" id="vocab-result-info"></p>
-          <div id="vocab-list" class="vocab-list"></div>
+          <div class="vocab-toolbar">
+            <button class="btn" id="vocab-flash-start">Start Flashcards</button>
+            <button class="btn btn-secondary" id="vocab-clear-col-filters">Clear column filters</button>
+          </div>
+
+          <div class="vocab-table-wrap">
+            <table class="vocab-table">
+              <thead>
+                <tr>
+                  <th>Word</th>
+                  <th>Pinyin</th>
+                  <th>Meaning</th>
+                  <th>Level</th>
+                  <th>Freq</th>
+                  <th>Radicals</th>
+                  <th>Mastered</th>
+                </tr>
+                <tr class="vocab-filter-row">
+                  <th><input id="vocab-col-word" type="search" placeholder="Search word" /></th>
+                  <th><input id="vocab-col-pinyin" type="search" placeholder="Search pinyin" /></th>
+                  <th><input id="vocab-col-meaning" type="search" placeholder="Search meaning" /></th>
+                  <th>
+                    <select id="vocab-col-level">
+                      <option value="all">All</option>
+                    </select>
+                  </th>
+                  <th class="vocab-freq-range">
+                    <input id="vocab-col-freq-min" type="number" min="1" placeholder="Min" />
+                    <input id="vocab-col-freq-max" type="number" min="1" placeholder="Max" />
+                  </th>
+                  <th><input id="vocab-col-radical" type="search" placeholder="radical/id" /></th>
+                  <th>
+                    <select id="vocab-col-mastered">
+                      <option value="all">All</option>
+                      <option value="yes">Mastered</option>
+                      <option value="no">Unlearned</option>
+                    </select>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="vocab-list" class="vocab-list"></tbody>
+            </table>
+          </div>
+
+          <article id="vocab-flash-panel" class="panel vocab-flash-panel hidden">
+            <div class="quiz-topline">
+              <h3>Vocab Flashcards</h3>
+              <div class="timer-actions">
+                <button class="btn btn-secondary" id="vocab-flash-close">Close</button>
+                <button class="btn btn-secondary" id="vocab-flash-shuffle">Shuffle</button>
+              </div>
+            </div>
+            <p id="vocab-flash-meta" class="muted">Card 0 / 0</p>
+            <button id="vocab-flash-card" class="flash-card" type="button">
+              <span class="flash-card-inner">
+                <span id="vocab-flash-front" class="flash-face flash-front"></span>
+                <span id="vocab-flash-back" class="flash-face flash-back"></span>
+              </span>
+            </button>
+            <div class="timer-actions">
+              <button class="btn btn-secondary" id="vocab-flash-prev">Previous</button>
+              <button class="btn" id="vocab-flash-flip">Flip</button>
+              <button class="btn btn-secondary" id="vocab-flash-next">Next</button>
+              <button class="btn btn-secondary" id="vocab-flash-mastered">Mark mastered</button>
+            </div>
+          </article>
+
           <div class="pager">
             <button class="btn btn-secondary" id="vocab-prev-page">Previous</button>
             <span id="vocab-page-info" class="muted">Page 1 / 1</span>

@@ -504,42 +504,149 @@ input[type="number"] {
   font-family: "Be Vietnam Pro", sans-serif;
 }
 
-.vocab-list {
-  display: grid;
-  gap: 0.7rem;
+.vocab-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 
-.vocab-card {
+.vocab-table-wrap {
   border: 1px solid #ece5d9;
   border-radius: 0.88rem;
-  padding: 0.75rem;
   background: #fffdf8;
+  overflow: auto;
 }
 
-.vocab-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.7rem;
+.vocab-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
 }
 
-.vocab-word {
-  font-family: "Noto Serif SC", serif;
-  font-size: 1.4rem;
-  line-height: 1;
+.vocab-table th,
+.vocab-table td {
+  border-bottom: 1px solid #efe7db;
+  padding: 0.58rem 0.62rem;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.86rem;
 }
 
-.vocab-meta {
-  margin-top: 0.2rem;
+.vocab-table thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--muted);
-  font-size: 0.82rem;
+  background: #fff6eb;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-.vocab-radicals {
-  margin-top: 0.2rem;
+.vocab-filter-row th {
+  text-transform: none;
+  letter-spacing: 0;
+  background: #fffaf2;
+  top: 2.1rem;
+  z-index: 1;
+}
+
+.vocab-filter-row input,
+.vocab-filter-row select {
+  width: 100%;
+  min-height: 2rem;
+  font-size: 0.8rem;
+}
+
+.vocab-freq-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+}
+
+.vocab-list tr:last-child td {
+  border-bottom: 0;
+}
+
+.vocab-cell-word {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.12rem;
+  line-height: 1.1;
+}
+
+.vocab-cell-pinyin {
+  color: var(--accent-alt);
+}
+
+.vocab-cell-radicals {
   font-family: "Noto Serif SC", serif;
   color: var(--accent-alt);
-  font-size: 0.9rem;
+}
+
+.vocab-cell-mastered .checkbox-line {
+  align-self: auto;
+}
+
+.vocab-flash-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.flash-card {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  perspective: 1300px;
+}
+
+.flash-card-inner {
+  position: relative;
+  display: block;
+  min-height: 240px;
+  transition: transform 280ms ease;
+  transform-style: preserve-3d;
+}
+
+.flash-card.is-flipped .flash-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flash-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #e9dbc7;
+  border-radius: 1rem;
+  background: linear-gradient(155deg, #fffaf3, #fff2de);
+  box-shadow: var(--shadow);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 1rem;
+}
+
+.flash-front {
+  font-family: "Noto Serif SC", serif;
+  font-size: clamp(2rem, 7vw, 3rem);
+  letter-spacing: 0.02em;
+}
+
+.flash-back {
+  transform: rotateY(180deg);
+  font-size: 1rem;
+  line-height: 1.6;
+  text-align: left;
+  place-items: start;
+  align-content: center;
+}
+
+.flash-back .flash-back-word {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.55rem;
+  margin-bottom: 0.4rem;
 }
 
 .pager {
@@ -762,7 +869,11 @@ input[type="number"] {
     flex-direction: column;
   }
 
-  .vocab-head {
-    flex-direction: column;
+  .vocab-table {
+    min-width: 760px;
+  }
+
+  .flash-card-inner {
+    min-height: 210px;
   }
 }

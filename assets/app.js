@@ -185,6 +185,11 @@ const state = {
   vocab: {
     page: 1,
     totalPages: 1,
+    filteredRows: [],
+    flashDeck: [],
+    flashIndex: 0,
+    flashBack: false,
+    flashOpen: false,
   },
   timer: {
     remaining: 25 * 60,
@@ -326,6 +331,16 @@ function toComparable(text) {
 
 function levelLabel(level) {
   return level === 7 ? "HSK 7-9" : `HSK ${level}`;
+}
+
+function escapeHtml(text) {
+  return (text ?? "")
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function fetchJson(path) {
@@ -866,6 +881,197 @@ function refreshVocabRadicalFilter() {
   select.value = optionExists ? previous : "all";
 }
 
+function getVocabColumnFilters() {
+  const toNumberOrNull = (value) => {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  return {
+    word: document.getElementById("vocab-col-word").value.trim().toLowerCase(),
+    pinyin: document.getElementById("vocab-col-pinyin").value.trim().toLowerCase(),
+    meaning: document.getElementById("vocab-col-meaning").value.trim().toLowerCase(),
+    level: document.getElementById("vocab-col-level").value,
+    freqMin: toNumberOrNull(document.getElementById("vocab-col-freq-min").value),
+    freqMax: toNumberOrNull(document.getElementById("vocab-col-freq-max").value),
+    radical: document.getElementById("vocab-col-radical").value.trim().toLowerCase(),
+    mastered: document.getElementById("vocab-col-mastered").value,
+  };
+}
+
+function clearVocabColumnFilters() {
+  [
+    "vocab-col-word",
+    "vocab-col-pinyin",
+    "vocab-col-meaning",
+    "vocab-col-freq-min",
+    "vocab-col-freq-max",
+    "vocab-col-radical",
+  ].forEach((id) => {
+    document.getElementById(id).value = "";
+  });
+  document.getElementById("vocab-col-level").value = "all";
+  document.getElementById("vocab-col-mastered").value = "all";
+}
+
+function applyVocabColumnFilters(rows, filters) {
+  return rows.filter((w) => {
+    const wordText = (w.word || "").toLowerCase();
+    const pinyinText = (w.pinyin || "").toLowerCase();
+    const meaningText = (w.meaning || "").toLowerCase();
+    const levelValue = String(w.level || "");
+    const freqValue = Number(w.frequency || 0);
+    const radicalIds = w.radical_ids || [];
+    const radicalText = radicalIds
+      .map((rid) => `${getRadicalIdeographById(rid)} ${rid}`)
+      .join(" ")
+      .toLowerCase();
+    const rec = state.progress.words[w.id];
+    const isMastered = Boolean(rec && rec.mastered);
+
+    if (filters.word && !wordText.includes(filters.word)) return false;
+    if (filters.pinyin && !pinyinText.includes(filters.pinyin)) return false;
+    if (filters.meaning && !meaningText.includes(filters.meaning)) return false;
+    if (filters.level !== "all" && levelValue !== filters.level) return false;
+    if (filters.freqMin !== null && freqValue < filters.freqMin) return false;
+    if (filters.freqMax !== null && freqValue > filters.freqMax) return false;
+    if (filters.radical && !radicalText.includes(filters.radical)) return false;
+    if (filters.mastered === "yes" && !isMastered) return false;
+    if (filters.mastered === "no" && isMastered) return false;
+    return true;
+  });
+}
+
+function syncFlashDeckWithVocabulary(rows) {
+  if (!state.vocab.flashOpen) {
+    return;
+  }
+
+  const byId = new Map(rows.map((w) => [w.id, w]));
+  const syncedDeck = state.vocab.flashDeck
+    .map((w) => byId.get(w.id))
+    .filter(Boolean);
+
+  if (syncedDeck.length) {
+    state.vocab.flashDeck = syncedDeck;
+  } else {
+    state.vocab.flashDeck = [...rows];
+    state.vocab.flashIndex = 0;
+    state.vocab.flashBack = false;
+  }
+
+  if (state.vocab.flashDeck.length === 0) {
+    state.vocab.flashIndex = 0;
+    state.vocab.flashBack = false;
+  } else {
+    state.vocab.flashIndex = Math.min(state.vocab.flashIndex, state.vocab.flashDeck.length - 1);
+  }
+}
+
+function getCurrentFlashWord() {
+  if (!state.vocab.flashDeck.length) return null;
+  return state.vocab.flashDeck[state.vocab.flashIndex] || null;
+}
+
+function openVocabFlashcards() {
+  if (!state.vocab.filteredRows.length) {
+    showToast("No words to build flashcards for this filter.");
+    return;
+  }
+  state.vocab.flashDeck = [...state.vocab.filteredRows];
+  state.vocab.flashIndex = 0;
+  state.vocab.flashBack = false;
+  state.vocab.flashOpen = true;
+  renderVocabFlashcard();
+}
+
+function closeVocabFlashcards() {
+  state.vocab.flashOpen = false;
+  renderVocabFlashcard();
+}
+
+function flipVocabFlashcard() {
+  if (!state.vocab.flashOpen) return;
+  state.vocab.flashBack = !state.vocab.flashBack;
+  renderVocabFlashcard();
+}
+
+function moveVocabFlashcard(step) {
+  if (!state.vocab.flashOpen || !state.vocab.flashDeck.length) return;
+  const maxIndex = state.vocab.flashDeck.length - 1;
+  state.vocab.flashIndex = Math.min(maxIndex, Math.max(0, state.vocab.flashIndex + step));
+  state.vocab.flashBack = false;
+  renderVocabFlashcard();
+}
+
+function shuffleVocabFlashDeck() {
+  if (!state.vocab.flashDeck.length) return;
+  state.vocab.flashDeck = shuffle(state.vocab.flashDeck);
+  state.vocab.flashIndex = 0;
+  state.vocab.flashBack = false;
+  renderVocabFlashcard();
+}
+
+function toggleCurrentFlashWordMastery() {
+  const current = getCurrentFlashWord();
+  if (!current) return;
+  const rec = state.progress.words[current.id];
+  toggleVocabMastery(current.id, !(rec && rec.mastered));
+}
+
+function renderVocabFlashcard() {
+  const panel = document.getElementById("vocab-flash-panel");
+  const startBtn = document.getElementById("vocab-flash-start");
+  const cardBtn = document.getElementById("vocab-flash-card");
+  const meta = document.getElementById("vocab-flash-meta");
+  const front = document.getElementById("vocab-flash-front");
+  const back = document.getElementById("vocab-flash-back");
+  const masteredBtn = document.getElementById("vocab-flash-mastered");
+  const showPinyin = document.getElementById("vocab-show-pinyin").checked;
+
+  startBtn.textContent = state.vocab.flashOpen ? "Restart Flashcards" : "Start Flashcards";
+  panel.classList.toggle("hidden", !state.vocab.flashOpen);
+  if (!state.vocab.flashOpen) {
+    return;
+  }
+
+  const current = getCurrentFlashWord();
+  if (!current) {
+    meta.textContent = "Card 0 / 0";
+    front.textContent = "No cards for current filters.";
+    back.innerHTML = "<div class=\"muted\">Try adjusting filters.</div>";
+    cardBtn.classList.remove("is-flipped");
+    masteredBtn.disabled = true;
+    document.getElementById("vocab-flash-prev").disabled = true;
+    document.getElementById("vocab-flash-next").disabled = true;
+    return;
+  }
+
+  const radicals = (current.radical_ids || [])
+    .map((rid) => `${getRadicalIdeographById(rid)} (No.${rid})`)
+    .join(" ");
+  const rec = state.progress.words[current.id];
+  const mastered = Boolean(rec && rec.mastered);
+
+  meta.textContent = `Card ${state.vocab.flashIndex + 1} / ${state.vocab.flashDeck.length}`;
+  front.textContent = current.word || "-";
+  back.innerHTML = `
+    <div class="flash-back-word">${escapeHtml(current.word || "-")}</div>
+    <div><strong>Pinyin:</strong> ${showPinyin ? escapeHtml(current.pinyin || "-") : "<span class=\"muted\">Hidden</span>"}</div>
+    <div><strong>Meaning:</strong> ${escapeHtml(current.meaning || "-")}</div>
+    <div><strong>Level:</strong> ${current.level ? escapeHtml(levelLabel(current.level)) : "-"}</div>
+    <div><strong>Frequency:</strong> ${escapeHtml(current.frequency || "-")}</div>
+    <div><strong>Radicals:</strong> ${escapeHtml(radicals || "-")}</div>
+  `;
+  cardBtn.classList.toggle("is-flipped", state.vocab.flashBack);
+  masteredBtn.disabled = false;
+  masteredBtn.textContent = mastered ? "Unmark mastered" : "Mark mastered";
+  document.getElementById("vocab-flash-prev").disabled = state.vocab.flashIndex <= 0;
+  document.getElementById("vocab-flash-next").disabled =
+    state.vocab.flashIndex >= state.vocab.flashDeck.length - 1;
+}
+
 function renderVocabulary(resetPage = false) {
   const level = document.getElementById("vocab-level-filter").value;
   const mode = document.getElementById("vocab-level-mode").value;
@@ -873,6 +1079,7 @@ function renderVocabulary(resetPage = false) {
   const search = document.getElementById("vocab-search").value.trim().toLowerCase();
   const showPinyin = document.getElementById("vocab-show-pinyin").checked;
   const onlyUnlearned = document.getElementById("vocab-only-unlearned").checked;
+  const columnFilters = getVocabColumnFilters();
 
   let rows = getWordsByLevelAndMode(level, mode);
   if (radical !== "all") {
@@ -890,6 +1097,8 @@ function renderVocabulary(resetPage = false) {
     rows = rows.filter((w) => !(state.progress.words[w.id] && state.progress.words[w.id].mastered));
   }
 
+  rows = applyVocabColumnFilters(rows, columnFilters);
+
   rows = rows.sort((a, b) => {
     const aLevel = Number(a.level || 0);
     const bLevel = Number(b.level || 0);
@@ -903,6 +1112,8 @@ function renderVocabulary(resetPage = false) {
     const bWord = (b.word || "").toString();
     return aWord.localeCompare(bWord, "zh");
   });
+  state.vocab.filteredRows = rows;
+  syncFlashDeckWithVocabulary(rows);
 
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / VOCAB_PAGE_SIZE));
@@ -922,30 +1133,34 @@ function renderVocabulary(resetPage = false) {
     ? `${total} words found. Showing ${from + 1}-${Math.min(to, total)}.`
     : "0 words found.";
 
+  document.getElementById("vocab-flash-start").disabled = total === 0;
+
   const list = document.getElementById("vocab-list");
   if (!pageRows.length) {
-    list.innerHTML = '<p class="muted">No vocabulary in this filter.</p>';
+    list.innerHTML = '<tr><td colspan="7" class="muted">No vocabulary in this filter.</td></tr>';
   } else {
     list.innerHTML = pageRows
       .map((w) => {
         const rec = state.progress.words[w.id];
-        const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+        const radicals = (w.radical_ids || [])
+          .map((rid) => `${getRadicalIdeographById(rid)} (${rid})`)
+          .join(" ");
+        const pinyin = showPinyin ? escapeHtml(w.pinyin || "-") : '<span class="muted">Hidden</span>';
         return `
-          <article class="vocab-card">
-            <div class="vocab-head">
-              <div>
-                <div class="vocab-word">${w.word}</div>
-                ${showPinyin ? `<div class="pinyin-line">${w.pinyin || "-"}</div>` : ""}
-                <div class="muted">${w.meaning || "-"}</div>
-                <div class="vocab-meta">${levelLabel(w.level)} · freq ${w.frequency}</div>
-                <div class="vocab-radicals">Radicals: ${radicals || "-"}</div>
-              </div>
+          <tr>
+            <td class="vocab-cell-word">${escapeHtml(w.word || "-")}</td>
+            <td class="vocab-cell-pinyin">${pinyin}</td>
+            <td>${escapeHtml(w.meaning || "-")}</td>
+            <td>${escapeHtml(levelLabel(w.level || 0))}</td>
+            <td>${escapeHtml(w.frequency || "-")}</td>
+            <td class="vocab-cell-radicals">${escapeHtml(radicals || "-")}</td>
+            <td class="vocab-cell-mastered">
               <label class="checkbox-line">
                 <input type="checkbox" data-vocab-id="${w.id}" ${rec && rec.mastered ? "checked" : ""} />
-                Mastered
+                ${rec && rec.mastered ? "Yes" : "No"}
               </label>
-            </div>
-          </article>
+            </td>
+          </tr>
         `;
       })
       .join("");
@@ -954,6 +1169,7 @@ function renderVocabulary(resetPage = false) {
   document.getElementById("vocab-page-info").textContent = `Page ${state.vocab.page} / ${totalPages}`;
   document.getElementById("vocab-prev-page").disabled = state.vocab.page <= 1;
   document.getElementById("vocab-next-page").disabled = state.vocab.page >= totalPages;
+  renderVocabFlashcard();
 }
 
 function toggleVocabMastery(wordId, checked) {
@@ -1823,6 +2039,50 @@ function setupEventHandlers() {
     document.getElementById(id).addEventListener("change", () => renderVocabulary(true));
   });
 
+  [
+    "vocab-col-word",
+    "vocab-col-pinyin",
+    "vocab-col-meaning",
+    "vocab-col-level",
+    "vocab-col-freq-min",
+    "vocab-col-freq-max",
+    "vocab-col-radical",
+    "vocab-col-mastered",
+  ].forEach((id) => {
+    document.getElementById(id).addEventListener("input", () => renderVocabulary(true));
+    document.getElementById(id).addEventListener("change", () => renderVocabulary(true));
+  });
+
+  document.getElementById("vocab-clear-col-filters").addEventListener("click", () => {
+    clearVocabColumnFilters();
+    renderVocabulary(true);
+  });
+
+  document.getElementById("vocab-flash-start").addEventListener("click", () => {
+    openVocabFlashcards();
+  });
+  document.getElementById("vocab-flash-close").addEventListener("click", () => {
+    closeVocabFlashcards();
+  });
+  document.getElementById("vocab-flash-shuffle").addEventListener("click", () => {
+    shuffleVocabFlashDeck();
+  });
+  document.getElementById("vocab-flash-prev").addEventListener("click", () => {
+    moveVocabFlashcard(-1);
+  });
+  document.getElementById("vocab-flash-next").addEventListener("click", () => {
+    moveVocabFlashcard(1);
+  });
+  document.getElementById("vocab-flash-flip").addEventListener("click", () => {
+    flipVocabFlashcard();
+  });
+  document.getElementById("vocab-flash-card").addEventListener("click", () => {
+    flipVocabFlashcard();
+  });
+  document.getElementById("vocab-flash-mastered").addEventListener("click", () => {
+    toggleCurrentFlashWordMastery();
+  });
+
   document.getElementById("vocab-list").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-vocab-id]");
     if (!input) return;
@@ -1922,6 +2182,7 @@ async function init() {
 
   buildLevelOptions(document.getElementById("radical-level-filter"));
   buildLevelOptions(document.getElementById("vocab-level-filter"));
+  buildLevelOptions(document.getElementById("vocab-col-level"));
   buildLevelOptions(document.getElementById("quiz-level"));
   buildLevelOptions(document.getElementById("grammar-level-filter"));
 
