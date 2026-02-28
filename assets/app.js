@@ -335,6 +335,83 @@ function fetchJson(path) {
   });
 }
 
+function fallbackMeta() {
+  const levels = {};
+  LEVELS.forEach((level) => {
+    const key = String(level);
+    levels[key] = {
+      words: (state.data.wordsByLevel[key] || []).length,
+      grammar_points: state.data.grammar.filter((g) => g.level === level).length,
+      radicals_introduced: state.data.radicals.filter((r) => r.first_hsk_level === level).length,
+      radicals_available_cumulative: state.data.radicals.filter(
+        (r) => r.first_hsk_level !== null && r.first_hsk_level <= level
+      ).length,
+    };
+  });
+
+  return {
+    generated_at: new Date().toISOString(),
+    levels,
+    totals: {
+      radicals: state.data.radicals.length,
+      words: allWords().length,
+      grammar_points: state.data.grammar.length,
+    },
+  };
+}
+
+async function loadAllData() {
+  const results = await Promise.allSettled([
+    fetchJson(DATA_FILES.radicals),
+    fetchJson(DATA_FILES.words),
+    fetchJson(DATA_FILES.grammar),
+    fetchJson(DATA_FILES.meta),
+  ]);
+
+  const [radicalsResult, wordsResult, grammarResult, metaResult] = results;
+  const failed = [];
+
+  if (radicalsResult.status === "fulfilled") {
+    state.data.radicals = radicalsResult.value.radicals || [];
+  } else {
+    state.data.radicals = [];
+    failed.push("radicals");
+    console.error(radicalsResult.reason);
+  }
+
+  if (wordsResult.status === "fulfilled") {
+    state.data.wordsByLevel = wordsResult.value.levels || {};
+  } else {
+    state.data.wordsByLevel = {};
+    failed.push("words");
+    console.error(wordsResult.reason);
+  }
+
+  state.data.allWords = LEVELS.flatMap((level) => state.data.wordsByLevel[String(level)] || []);
+
+  if (grammarResult.status === "fulfilled") {
+    state.data.grammar = grammarResult.value.points || [];
+  } else {
+    state.data.grammar = [];
+    failed.push("grammar");
+    console.error(grammarResult.reason);
+  }
+
+  if (metaResult.status === "fulfilled") {
+    state.data.meta = metaResult.value || fallbackMeta();
+  } else {
+    state.data.meta = fallbackMeta();
+    failed.push("meta");
+    console.error(metaResult.reason);
+  }
+
+  if (!state.data.meta || !state.data.meta.levels) {
+    state.data.meta = fallbackMeta();
+  }
+
+  return failed;
+}
+
 function setActiveTab(tab) {
   const target = document.getElementById(`tab-${tab}`) ? tab : "dashboard";
   const nav = document.getElementById("main-nav");
@@ -565,7 +642,14 @@ function renderDashboard() {
 
   LEVELS.forEach((level) => {
     const key = String(level);
-    const levelMeta = state.data.meta.levels[key];
+    const levelMeta = state.data.meta?.levels?.[key] || {
+      words: (state.data.wordsByLevel[key] || []).length,
+      grammar_points: state.data.grammar.filter((g) => g.level === level).length,
+      radicals_introduced: state.data.radicals.filter((r) => r.first_hsk_level === level).length,
+      radicals_available_cumulative: state.data.radicals.filter(
+        (r) => r.first_hsk_level !== null && r.first_hsk_level <= level
+      ).length,
+    };
 
     const availableRadicals = state.data.radicals.filter(
       (r) => r.first_hsk_level !== null && r.first_hsk_level <= level
@@ -807,9 +891,17 @@ function renderVocabulary(resetPage = false) {
   }
 
   rows = rows.sort((a, b) => {
-    if (a.level !== b.level) return a.level - b.level;
-    if (a.frequency !== b.frequency) return a.frequency - b.frequency;
-    return a.word.localeCompare(b.word, "zh");
+    const aLevel = Number(a.level || 0);
+    const bLevel = Number(b.level || 0);
+    if (aLevel !== bLevel) return aLevel - bLevel;
+
+    const aFreq = Number.isFinite(Number(a.frequency)) ? Number(a.frequency) : Number.MAX_SAFE_INTEGER;
+    const bFreq = Number.isFinite(Number(b.frequency)) ? Number(b.frequency) : Number.MAX_SAFE_INTEGER;
+    if (aFreq !== bFreq) return aFreq - bFreq;
+
+    const aWord = (a.word || "").toString();
+    const bWord = (b.word || "").toString();
+    return aWord.localeCompare(bWord, "zh");
   });
 
   const total = rows.length;
@@ -1611,18 +1703,26 @@ function setupPwaLifecycle() {
 }
 
 function renderAll() {
-  refreshHeaderPills();
-  updateNetworkStatusPill();
-  renderDashboard();
-  renderRadicals();
-  refreshVocabRadicalFilter();
-  renderVocabulary(true);
-  renderQuizQuestion();
-  updateQuizScoreline();
-  renderGrammar();
-  renderPronunciation();
-  renderIntensive();
-  refreshQuizRadicalFilter();
+  const safeRender = (label, fn) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`Render failed: ${label}`, err);
+    }
+  };
+
+  safeRender("header", refreshHeaderPills);
+  safeRender("network", updateNetworkStatusPill);
+  safeRender("dashboard", renderDashboard);
+  safeRender("radicals", renderRadicals);
+  safeRender("vocab-radical-filter", refreshVocabRadicalFilter);
+  safeRender("vocabulary", () => renderVocabulary(true));
+  safeRender("quiz-question", renderQuizQuestion);
+  safeRender("quiz-score", updateQuizScoreline);
+  safeRender("grammar", renderGrammar);
+  safeRender("pronunciation", renderPronunciation);
+  safeRender("intensive", renderIntensive);
+  safeRender("quiz-radical-filter", refreshQuizRadicalFilter);
 }
 
 function setupTabSwitching() {
@@ -1818,19 +1918,7 @@ function setupEventHandlers() {
 async function init() {
   state.progress = loadProgress();
   setupPwaLifecycle();
-
-  const [radicalData, wordData, grammarData, metaData] = await Promise.all([
-    fetchJson(DATA_FILES.radicals),
-    fetchJson(DATA_FILES.words),
-    fetchJson(DATA_FILES.grammar),
-    fetchJson(DATA_FILES.meta),
-  ]);
-
-  state.data.radicals = radicalData.radicals || [];
-  state.data.wordsByLevel = wordData.levels || {};
-  state.data.allWords = LEVELS.flatMap((level) => state.data.wordsByLevel[String(level)] || []);
-  state.data.grammar = grammarData.points || [];
-  state.data.meta = metaData;
+  const failed = await loadAllData();
 
   buildLevelOptions(document.getElementById("radical-level-filter"));
   buildLevelOptions(document.getElementById("vocab-level-filter"));
@@ -1842,6 +1930,10 @@ async function init() {
   activateInitialTabFromUrl();
   renderAll();
   await registerServiceWorker();
+
+  if (failed.length) {
+    showToast(`Cảnh báo tải dữ liệu: ${failed.join(", ")}`);
+  }
 }
 
 init().catch((err) => {

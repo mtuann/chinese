@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-02-28-pwa-v1";
+const SW_VERSION = "2026-02-28-pwa-v2";
 const SHELL_CACHE = `hsk-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `hsk-runtime-${SW_VERSION}`;
 const DATA_CACHE = `hsk-data-${SW_VERSION}`;
