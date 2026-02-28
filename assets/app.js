@@ -200,6 +200,9 @@ const state = {
     deferredInstallPrompt: null,
     registration: null,
   },
+  audio: {
+    ttsUnavailableNotified: false,
+  },
 };
 
 function defaultProgress() {
@@ -341,6 +344,62 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function supportsTts() {
+  return "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance !== "undefined";
+}
+
+function notifyTtsUnavailable() {
+  if (state.audio.ttsUnavailableNotified) return;
+  state.audio.ttsUnavailableNotified = true;
+  showToast("Thiết bị/trình duyệt này không hỗ trợ phát âm TTS.");
+}
+
+function pickPreferredVoice(langPrefix = "zh") {
+  if (!supportsTts()) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  const lower = langPrefix.toLowerCase();
+  return (
+    voices.find((v) => (v.lang || "").toLowerCase().startsWith(lower)) ||
+    voices.find((v) => (v.lang || "").toLowerCase().startsWith("zh")) ||
+    null
+  );
+}
+
+function speakText(text, options = {}) {
+  const content = (text || "").toString().trim();
+  if (!content) return false;
+  if (!supportsTts()) {
+    notifyTtsUnavailable();
+    return false;
+  }
+
+  const lang = options.lang || "zh-CN";
+  const utter = new SpeechSynthesisUtterance(content);
+  utter.lang = lang;
+  utter.rate = options.rate || 0.95;
+  utter.pitch = 1;
+  utter.volume = 1;
+
+  const voice = pickPreferredVoice(lang.toLowerCase().startsWith("zh") ? "zh" : lang);
+  if (voice) utter.voice = voice;
+
+  if (options.interrupt !== false) {
+    window.speechSynthesis.cancel();
+  }
+  window.speechSynthesis.speak(utter);
+  return true;
+}
+
+function speakVocabWord(word) {
+  if (!word) return false;
+  const text = (word.word || "").trim() || (word.pinyin || "").trim();
+  return speakText(text, { lang: "zh-CN", rate: 0.9 });
+}
+
+function findWordById(wordId) {
+  return allWords().find((w) => w.id === wordId) || null;
 }
 
 function fetchJson(path) {
@@ -974,6 +1033,22 @@ function getCurrentFlashWord() {
   return state.vocab.flashDeck[state.vocab.flashIndex] || null;
 }
 
+function isVocabAutoSpeakEnabled() {
+  const checkbox = document.getElementById("vocab-audio-auto");
+  return Boolean(checkbox && checkbox.checked);
+}
+
+function replayFlashcardAudio() {
+  const current = getCurrentFlashWord();
+  if (!current) return false;
+  return speakVocabWord(current);
+}
+
+function autoSpeakFlashcard() {
+  if (!isVocabAutoSpeakEnabled()) return;
+  replayFlashcardAudio();
+}
+
 function openVocabFlashcards() {
   if (!state.vocab.filteredRows.length) {
     showToast("No words to build flashcards for this filter.");
@@ -984,10 +1059,15 @@ function openVocabFlashcards() {
   state.vocab.flashBack = false;
   state.vocab.flashOpen = true;
   renderVocabFlashcard();
+  document.getElementById("vocab-flash-card").focus();
+  autoSpeakFlashcard();
 }
 
 function closeVocabFlashcards() {
   state.vocab.flashOpen = false;
+  if (supportsTts()) {
+    window.speechSynthesis.cancel();
+  }
   renderVocabFlashcard();
 }
 
@@ -1003,6 +1083,7 @@ function moveVocabFlashcard(step) {
   state.vocab.flashIndex = Math.min(maxIndex, Math.max(0, state.vocab.flashIndex + step));
   state.vocab.flashBack = false;
   renderVocabFlashcard();
+  autoSpeakFlashcard();
 }
 
 function shuffleVocabFlashDeck() {
@@ -1011,6 +1092,7 @@ function shuffleVocabFlashDeck() {
   state.vocab.flashIndex = 0;
   state.vocab.flashBack = false;
   renderVocabFlashcard();
+  autoSpeakFlashcard();
 }
 
 function toggleCurrentFlashWordMastery() {
@@ -1021,17 +1103,19 @@ function toggleCurrentFlashWordMastery() {
 }
 
 function renderVocabFlashcard() {
-  const panel = document.getElementById("vocab-flash-panel");
+  const modal = document.getElementById("vocab-flash-modal");
   const startBtn = document.getElementById("vocab-flash-start");
   const cardBtn = document.getElementById("vocab-flash-card");
   const meta = document.getElementById("vocab-flash-meta");
   const front = document.getElementById("vocab-flash-front");
   const back = document.getElementById("vocab-flash-back");
   const masteredBtn = document.getElementById("vocab-flash-mastered");
+  const replayBtn = document.getElementById("vocab-flash-replay");
   const showPinyin = document.getElementById("vocab-show-pinyin").checked;
 
   startBtn.textContent = state.vocab.flashOpen ? "Restart Flashcards" : "Start Flashcards";
-  panel.classList.toggle("hidden", !state.vocab.flashOpen);
+  modal.classList.toggle("hidden", !state.vocab.flashOpen);
+  document.body.classList.toggle("flash-modal-open", state.vocab.flashOpen);
   if (!state.vocab.flashOpen) {
     return;
   }
@@ -1043,6 +1127,7 @@ function renderVocabFlashcard() {
     back.innerHTML = "<div class=\"muted\">Try adjusting filters.</div>";
     cardBtn.classList.remove("is-flipped");
     masteredBtn.disabled = true;
+    replayBtn.disabled = true;
     document.getElementById("vocab-flash-prev").disabled = true;
     document.getElementById("vocab-flash-next").disabled = true;
     return;
@@ -1066,6 +1151,7 @@ function renderVocabFlashcard() {
   `;
   cardBtn.classList.toggle("is-flipped", state.vocab.flashBack);
   masteredBtn.disabled = false;
+  replayBtn.disabled = !supportsTts();
   masteredBtn.textContent = mastered ? "Unmark mastered" : "Mark mastered";
   document.getElementById("vocab-flash-prev").disabled = state.vocab.flashIndex <= 0;
   document.getElementById("vocab-flash-next").disabled =
@@ -1148,7 +1234,20 @@ function renderVocabulary(resetPage = false) {
         const pinyin = showPinyin ? escapeHtml(w.pinyin || "-") : '<span class="muted">Hidden</span>';
         return `
           <tr>
-            <td class="vocab-cell-word">${escapeHtml(w.word || "-")}</td>
+            <td class="vocab-cell-word">
+              <div class="vocab-word-line">
+                <span>${escapeHtml(w.word || "-")}</span>
+                <button
+                  class="btn btn-secondary btn-small vocab-audio-btn"
+                  type="button"
+                  data-vocab-audio-id="${w.id}"
+                  ${supportsTts() ? "" : "disabled"}
+                  title="Play audio"
+                >
+                  Audio
+                </button>
+              </div>
+            </td>
             <td class="vocab-cell-pinyin">${pinyin}</td>
             <td>${escapeHtml(w.meaning || "-")}</td>
             <td>${escapeHtml(levelLabel(w.level || 0))}</td>
@@ -1301,6 +1400,27 @@ function updateQuizScoreline() {
   el.textContent = `Correct ${state.progress.quizStats.correct} | Wrong ${state.progress.quizStats.wrong}`;
 }
 
+function setFeedbackState(el, correct, text) {
+  el.textContent = text;
+  el.className = "quiz-feedback";
+  el.classList.add(correct ? "feedback-ok" : "feedback-warn");
+}
+
+function markChoiceButtons(containerSelector, optionAttr, correctValue, selectedValue) {
+  const buttons = [...document.querySelectorAll(`${containerSelector} button[${optionAttr}]`)];
+  buttons.forEach((btn) => {
+    const value = btn.getAttribute(optionAttr);
+    btn.disabled = true;
+    btn.classList.remove("answer-correct", "answer-wrong");
+
+    if (value === String(correctValue)) {
+      btn.classList.add("answer-correct");
+    } else if (value === String(selectedValue)) {
+      btn.classList.add("answer-wrong");
+    }
+  });
+}
+
 function renderQuizQuestion() {
   const wrap = document.getElementById("quiz-question-wrap");
   const q = state.currentQuiz;
@@ -1369,7 +1489,7 @@ function newQuizQuestion() {
     const radical = pickRandom(pool);
     const distractors = shuffle(pool.filter((x) => x.id !== radical.id)).slice(0, 3);
     const options = shuffle([radical, ...distractors]);
-    state.currentQuiz = { mode, radical, options };
+    state.currentQuiz = { mode, radical, options, answered: false };
   } else if (mode === "radical-dictation") {
     const pool = getRadicalPoolForLevel(level);
     if (!pool.length) {
@@ -1377,7 +1497,7 @@ function newQuizQuestion() {
       return;
     }
     const radical = pickRandom(pool);
-    state.currentQuiz = { mode, radical };
+    state.currentQuiz = { mode, radical, answered: false };
   } else {
     const pool = getWordsForFilters(level, radicalFilter);
     if (!pool.length) {
@@ -1385,7 +1505,7 @@ function newQuizQuestion() {
       return;
     }
     const word = pickRandom(pool);
-    state.currentQuiz = { mode, word };
+    state.currentQuiz = { mode, word, answered: false };
   }
 
   renderQuizQuestion();
@@ -1408,8 +1528,9 @@ function registerQuizResult(correct, payload) {
 
 function handleOptionAnswer(optionId) {
   const q = state.currentQuiz;
-  if (!q || q.mode !== "radical-mc") return;
+  if (!q || q.mode !== "radical-mc" || q.answered) return;
 
+  q.answered = true;
   const correct = optionId === q.radical.id;
   const feedbackEl = document.getElementById("quiz-feedback");
   const nextBtn = document.getElementById("quiz-next");
@@ -1417,13 +1538,14 @@ function handleOptionAnswer(optionId) {
   const rec = ensureReviewRecord(state.progress.radicals, q.radical.id);
   applyReview(rec, correct);
 
-  if (correct) {
-    feedbackEl.textContent = `Correct. ${q.radical.ideograph} means: ${q.radical.definition || "-"}`;
-    feedbackEl.classList.add("feedback-ok");
-  } else {
-    feedbackEl.textContent = `Wrong. Correct answer: ${q.radical.definition || "-"}`;
-    feedbackEl.classList.add("feedback-warn");
-  }
+  setFeedbackState(
+    feedbackEl,
+    correct,
+    correct
+      ? `Correct. ${q.radical.ideograph} means: ${q.radical.definition || "-"}`
+      : `Wrong. Correct answer: ${q.radical.definition || "-"}`
+  );
+  markChoiceButtons("#quiz-options", "data-option", q.radical.id, optionId);
 
   registerQuizResult(correct, {
     type: "radical-mc",
@@ -1438,7 +1560,7 @@ function handleOptionAnswer(optionId) {
 
 function handleTextAnswer() {
   const q = state.currentQuiz;
-  if (!q) return;
+  if (!q || q.answered) return;
 
   const input = document.getElementById("quiz-answer-input");
   const user = input.value.trim();
@@ -1451,6 +1573,7 @@ function handleTextAnswer() {
   let expected = "";
 
   if (q.mode === "radical-dictation") {
+    q.answered = true;
     const validAnswers = new Set([q.radical.ideograph, q.radical.symbol]);
     correct = validAnswers.has(user);
     expected = q.radical.ideograph;
@@ -1458,13 +1581,11 @@ function handleTextAnswer() {
     const rec = ensureReviewRecord(state.progress.radicals, q.radical.id);
     applyReview(rec, correct);
 
-    if (correct) {
-      feedbackEl.textContent = `Correct: ${q.radical.ideograph}`;
-      feedbackEl.classList.add("feedback-ok");
-    } else {
-      feedbackEl.textContent = `Wrong. Correct radical: ${q.radical.ideograph}`;
-      feedbackEl.classList.add("feedback-warn");
-    }
+    setFeedbackState(
+      feedbackEl,
+      correct,
+      correct ? `Correct: ${q.radical.ideograph}` : `Wrong. Correct radical: ${q.radical.ideograph}`
+    );
 
     registerQuizResult(correct, {
       type: "radical-dictation",
@@ -1473,6 +1594,7 @@ function handleTextAnswer() {
       user,
     });
   } else if (q.mode === "word-dictation") {
+    q.answered = true;
     expected = q.word.word;
     correct = toComparable(user) === toComparable(expected);
 
@@ -1488,13 +1610,11 @@ function handleTextAnswer() {
       applyReview(rec, correct);
     });
 
-    if (correct) {
-      feedbackEl.textContent = `Correct: ${q.word.word}`;
-      feedbackEl.classList.add("feedback-ok");
-    } else {
-      feedbackEl.textContent = `Wrong. Correct word: ${q.word.word}`;
-      feedbackEl.classList.add("feedback-warn");
-    }
+    setFeedbackState(
+      feedbackEl,
+      correct,
+      correct ? `Correct: ${q.word.word}` : `Wrong. Correct word: ${q.word.word}`
+    );
 
     registerQuizResult(correct, {
       type: "word-dictation",
@@ -1628,7 +1748,7 @@ function newGrammarQuizQuestion() {
     ...shuffle(pool.filter((x) => x.id !== target.id)).slice(0, 3),
   ]);
 
-  state.currentGrammarQuiz = { target, options };
+  state.currentGrammarQuiz = { target, options, answered: false };
 
   const wrap = document.getElementById("grammar-quiz-wrap");
   const qEl = document.getElementById("grammar-quiz-question");
@@ -1658,8 +1778,9 @@ function newGrammarQuizQuestion() {
 
 function handleGrammarQuizOption(optionId) {
   const q = state.currentGrammarQuiz;
-  if (!q) return;
+  if (!q || q.answered) return;
 
+  q.answered = true;
   const correct = optionId === q.target.id;
   const feedback = document.getElementById("grammar-quiz-feedback");
   const nextBtn = document.getElementById("grammar-quiz-next");
@@ -1669,11 +1790,9 @@ function handleGrammarQuizOption(optionId) {
   if (correct) {
     rec.mastered = rec.stage >= 2;
     addDaily("grammar", 1);
-    feedback.textContent = `Correct: ${q.target.title}`;
-    feedback.classList.add("feedback-ok");
+    setFeedbackState(feedback, true, `Correct: ${q.target.title}`);
   } else {
-    feedback.textContent = `Wrong. Correct: ${q.target.title}`;
-    feedback.classList.add("feedback-warn");
+    setFeedbackState(feedback, false, `Wrong. Correct: ${q.target.title}`);
     addMistake({
       type: "grammar-quiz",
       prompt: q.target.examples?.[0] || q.target.code,
@@ -1681,6 +1800,8 @@ function handleGrammarQuizOption(optionId) {
       user: optionId,
     });
   }
+
+  markChoiceButtons("#grammar-quiz-options", "data-grammar-option", q.target.id, optionId);
 
   saveProgress();
   renderGrammar();
@@ -2076,17 +2197,52 @@ function setupEventHandlers() {
   document.getElementById("vocab-flash-flip").addEventListener("click", () => {
     flipVocabFlashcard();
   });
+  document.getElementById("vocab-flash-replay").addEventListener("click", () => {
+    replayFlashcardAudio();
+  });
   document.getElementById("vocab-flash-card").addEventListener("click", () => {
     flipVocabFlashcard();
   });
   document.getElementById("vocab-flash-mastered").addEventListener("click", () => {
     toggleCurrentFlashWordMastery();
   });
+  document.getElementById("vocab-flash-modal").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-flash-close]")) return;
+    closeVocabFlashcards();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!state.vocab.flashOpen) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeVocabFlashcards();
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      moveVocabFlashcard(-1);
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      moveVocabFlashcard(1);
+      return;
+    }
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      flipVocabFlashcard();
+    }
+  });
 
   document.getElementById("vocab-list").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-vocab-id]");
     if (!input) return;
     toggleVocabMastery(input.dataset.vocabId, input.checked);
+  });
+  document.getElementById("vocab-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-vocab-audio-id]");
+    if (!btn) return;
+    const word = findWordById(btn.dataset.vocabAudioId);
+    speakVocabWord(word);
   });
 
   document.getElementById("vocab-prev-page").addEventListener("click", () => {

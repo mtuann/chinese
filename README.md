@@ -41,6 +41,7 @@
 5. `Vocabulary by Level`
 - Học từ vựng theo level với lọc `Only this level` hoặc `Up to this level`
 - Filter theo bộ thủ, tìm theo từ/pinyin/nghĩa, và phân trang
+- Audio mode không cần API: dùng Web Speech API để phát âm từ vựng (nút `Audio` trong bảng), auto-speak trong flashcard, và nút replay
 - Đánh dấu từ đã mastered để theo dõi tiến độ
 
 6. `Pronunciation Guide`
