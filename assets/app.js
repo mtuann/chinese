@@ -182,6 +182,7 @@ const state = {
   progress: null,
   currentQuiz: null,
   currentGrammarQuiz: null,
+  grammarQuizOpen: false,
   vocab: {
     page: 1,
     totalPages: 1,
@@ -400,6 +401,13 @@ function speakVocabWord(word) {
 
 function findWordById(wordId) {
   return allWords().find((w) => w.id === wordId) || null;
+}
+
+function syncModalBodyLock() {
+  document.body.classList.toggle(
+    "flash-modal-open",
+    Boolean(state.vocab.flashOpen || state.grammarQuizOpen)
+  );
 }
 
 function fetchJson(path) {
@@ -1115,7 +1123,7 @@ function renderVocabFlashcard() {
 
   startBtn.textContent = state.vocab.flashOpen ? "Restart Flashcards" : "Start Flashcards";
   modal.classList.toggle("hidden", !state.vocab.flashOpen);
-  document.body.classList.toggle("flash-modal-open", state.vocab.flashOpen);
+  syncModalBodyLock();
   if (!state.vocab.flashOpen) {
     return;
   }
@@ -1156,6 +1164,18 @@ function renderVocabFlashcard() {
   document.getElementById("vocab-flash-prev").disabled = state.vocab.flashIndex <= 0;
   document.getElementById("vocab-flash-next").disabled =
     state.vocab.flashIndex >= state.vocab.flashDeck.length - 1;
+}
+
+function openGrammarQuizModal() {
+  state.grammarQuizOpen = true;
+  document.getElementById("grammar-quiz-modal").classList.remove("hidden");
+  syncModalBodyLock();
+}
+
+function closeGrammarQuizModal() {
+  state.grammarQuizOpen = false;
+  document.getElementById("grammar-quiz-modal").classList.add("hidden");
+  syncModalBodyLock();
 }
 
 function renderVocabulary(resetPage = false) {
@@ -1749,6 +1769,7 @@ function newGrammarQuizQuestion() {
   ]);
 
   state.currentGrammarQuiz = { target, options, answered: false };
+  openGrammarQuizModal();
 
   const wrap = document.getElementById("grammar-quiz-wrap");
   const qEl = document.getElementById("grammar-quiz-question");
@@ -2232,6 +2253,13 @@ function setupEventHandlers() {
       flipVocabFlashcard();
     }
   });
+  document.addEventListener("keydown", (e) => {
+    if (!state.grammarQuizOpen) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeGrammarQuizModal();
+    }
+  });
 
   document.getElementById("vocab-list").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-vocab-id]");
@@ -2271,6 +2299,13 @@ function setupEventHandlers() {
   });
   document.getElementById("grammar-quiz-next").addEventListener("click", () => {
     newGrammarQuizQuestion();
+  });
+  document.getElementById("grammar-quiz-close").addEventListener("click", () => {
+    closeGrammarQuizModal();
+  });
+  document.getElementById("grammar-quiz-modal").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-grammar-close]")) return;
+    closeGrammarQuizModal();
   });
   document.getElementById("grammar-quiz-options").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-grammar-option]");

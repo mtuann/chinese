@@ -292,12 +292,7 @@
               <h3>Grammar Quick Quiz</h3>
               <button id="grammar-quiz-start" class="btn">Start</button>
             </div>
-            <div id="grammar-quiz-wrap" class="hidden">
-              <p id="grammar-quiz-question" class="quiz-question"></p>
-              <div id="grammar-quiz-options" class="quiz-options"></div>
-              <p id="grammar-quiz-feedback" class="quiz-feedback"></p>
-              <button id="grammar-quiz-next" class="btn btn-secondary hidden">Next</button>
-            </div>
+            <p class="muted">Quiz sẽ mở trong hộp thoại modal để tập trung làm bài.</p>
           </div>
         </section>
 
@@ -433,6 +428,22 @@
           <button class="btn btn-secondary" id="vocab-flash-replay">Replay audio</button>
           <button class="btn btn-secondary" id="vocab-flash-next">Next</button>
           <button class="btn btn-secondary" id="vocab-flash-mastered">Mark mastered</button>
+        </div>
+      </article>
+    </div>
+
+    <div id="grammar-quiz-modal" class="flash-modal hidden" role="dialog" aria-modal="true" aria-labelledby="grammar-quiz-title">
+      <button class="flash-modal-backdrop" data-grammar-close="1" aria-label="Close grammar quiz modal"></button>
+      <article class="panel flash-modal-card grammar-quiz-modal-card">
+        <div class="quiz-topline">
+          <h3 id="grammar-quiz-title">Grammar Quick Quiz</h3>
+          <button id="grammar-quiz-close" class="btn btn-secondary">Close</button>
+        </div>
+        <div id="grammar-quiz-wrap" class="hidden">
+          <p id="grammar-quiz-question" class="quiz-question"></p>
+          <div id="grammar-quiz-options" class="quiz-options"></div>
+          <p id="grammar-quiz-feedback" class="quiz-feedback"></p>
+          <button id="grammar-quiz-next" class="btn btn-secondary hidden">Next</button>
         </div>
       </article>
     </div>
