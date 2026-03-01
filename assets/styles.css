@@ -489,6 +489,17 @@ input[type="number"] {
   gap: 0.7rem;
 }
 
+.grammar-quiz-cta {
+  border-color: #f0dcbf;
+  background:
+    radial-gradient(circle at 86% 12%, rgba(255, 209, 140, 0.38), rgba(255, 209, 140, 0)),
+    linear-gradient(150deg, #fffaf2, #fff4e3);
+}
+
+.grammar-quiz-cta .quiz-topline h3 {
+  color: var(--accent-strong);
+}
+
 .grammar-card {
   border: 1px solid #ece5d9;
   border-radius: 0.88rem;
