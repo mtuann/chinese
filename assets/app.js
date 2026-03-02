@@ -213,6 +213,14 @@ const state = {
     quizMasteredOpen: false,
     grammarMasteredOpen: false,
   },
+  masteredDialog: {
+    open: false,
+    section: "",
+    page: 1,
+    pageSize: 30,
+    sort: "mastery-desc",
+    query: "",
+  },
   timer: {
     remaining: 25 * 60,
     running: false,
@@ -354,9 +362,27 @@ function mergeWithDefaults(raw) {
   const merged = defaultProgress();
   if (!raw || typeof raw !== "object") return merged;
 
-  merged.radicals = raw.radicals || {};
-  merged.words = raw.words || {};
-  merged.grammar = raw.grammar || {};
+  const normalizeBucket = (bucket) => {
+    const out = {};
+    if (!bucket || typeof bucket !== "object") return out;
+    Object.entries(bucket).forEach(([id, rec]) => {
+      if (!rec || typeof rec !== "object") return;
+      out[id] = {
+        mastered: Boolean(rec.mastered),
+        masteredAt: rec.masteredAt || (rec.mastered ? rec.lastReviewed || null : null),
+        stage: Number.isFinite(Number(rec.stage)) ? Number(rec.stage) : 0,
+        nextDue: rec.nextDue || null,
+        lastReviewed: rec.lastReviewed || null,
+        correct: Number.isFinite(Number(rec.correct)) ? Number(rec.correct) : 0,
+        wrong: Number.isFinite(Number(rec.wrong)) ? Number(rec.wrong) : 0,
+      };
+    });
+    return out;
+  };
+
+  merged.radicals = normalizeBucket(raw.radicals);
+  merged.words = normalizeBucket(raw.words);
+  merged.grammar = normalizeBucket(raw.grammar);
   merged.quizStats = {
     ...merged.quizStats,
     ...(raw.quizStats || {}),
@@ -635,7 +661,7 @@ function takeNextQueueId(queueIds, poolIds, excludeId = null) {
 function syncModalBodyLock() {
   document.body.classList.toggle(
     "flash-modal-open",
-    Boolean(state.vocab.flashOpen || state.grammarQuizOpen)
+    Boolean(state.vocab.flashOpen || state.grammarQuizOpen || state.masteredDialog.open)
   );
 }
 
@@ -765,6 +791,7 @@ function ensureReviewRecord(bucket, id) {
   if (!bucket[id]) {
     bucket[id] = {
       mastered: false,
+      masteredAt: null,
       stage: 0,
       nextDue: null,
       lastReviewed: null,
@@ -778,6 +805,7 @@ function ensureReviewRecord(bucket, id) {
 function resetReviewRecord(bucket, id) {
   bucket[id] = {
     mastered: false,
+    masteredAt: null,
     stage: 0,
     nextDue: null,
     lastReviewed: null,
@@ -788,6 +816,7 @@ function resetReviewRecord(bucket, id) {
 
 function applyReview(record, isCorrect) {
   const now = new Date();
+  const wasMastered = Boolean(record.mastered);
   if (isCorrect) {
     record.correct += 1;
     record.stage = Math.min(record.stage + 1, SRS_INTERVALS.length);
@@ -806,6 +835,12 @@ function applyReview(record, isCorrect) {
   due.setDate(due.getDate() + dayOffset);
   record.nextDue = due.toISOString();
   record.lastReviewed = now.toISOString();
+  if (record.mastered && !wasMastered) {
+    record.masteredAt = now.toISOString();
+  }
+  if (!record.mastered) {
+    record.masteredAt = null;
+  }
 }
 
 function isDue(record) {
@@ -1326,65 +1361,44 @@ function ensureFlashHasCurrentWord() {
 }
 
 function setMasteredBoxVisibility(section, open) {
-  const bySection = {
-    vocab: {
-      panelId: "vocab-mastered-box",
-      buttonId: "vocab-mastered-toggle",
-      showLabel: "Show Mastered Box",
-      hideLabel: "Hide Mastered Box",
-      key: "vocabMasteredOpen",
-    },
-    quiz: {
-      panelId: "quiz-mastered-box",
-      buttonId: "quiz-mastered-toggle",
-      showLabel: "Show Mastered Box",
-      hideLabel: "Hide Mastered Box",
-      key: "quizMasteredOpen",
-    },
-    grammar: {
-      panelId: "grammar-mastered-box",
-      buttonId: "grammar-mastered-toggle",
-      showLabel: "Show Mastered Box",
-      hideLabel: "Hide Mastered Box",
-      key: "grammarMasteredOpen",
-    },
+  const buttonBySection = {
+    vocab: "vocab-mastered-toggle",
+    quiz: "quiz-mastered-toggle",
+    grammar: "grammar-mastered-toggle",
   };
-
-  const conf = bySection[section];
-  if (!conf) return;
-  const panel = document.getElementById(conf.panelId);
-  const btn = document.getElementById(conf.buttonId);
-  state.boxes[conf.key] = Boolean(open);
-  if (panel) panel.classList.toggle("hidden", !state.boxes[conf.key]);
-  if (btn) btn.textContent = state.boxes[conf.key] ? conf.hideLabel : conf.showLabel;
-}
-
-function toggleMasteredBox(section) {
+  const panelBySection = {
+    vocab: "vocab-mastered-box",
+    quiz: "quiz-mastered-box",
+    grammar: "grammar-mastered-box",
+  };
+  const buttonId = buttonBySection[section];
+  const panelId = panelBySection[section];
+  if (panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.add("hidden");
+  }
+  if (buttonId) {
+    const btn = document.getElementById(buttonId);
+    if (btn) btn.textContent = "Open Mastered Dialog";
+  }
   const keyMap = {
     vocab: "vocabMasteredOpen",
     quiz: "quizMasteredOpen",
     grammar: "grammarMasteredOpen",
   };
   const key = keyMap[section];
-  if (!key) return;
-  setMasteredBoxVisibility(section, !state.boxes[key]);
-  if (section === "vocab" && state.boxes[key]) {
-    renderVocabMasteredBox();
-  }
-  if (section === "quiz" && state.boxes[key]) {
-    renderQuizMasteredBox();
-  }
-  if (section === "grammar" && state.boxes[key]) {
-    renderGrammarMasteredBox();
-  }
-  saveStudySession();
+  if (key) state.boxes[key] = Boolean(open);
 }
 
-function getVocabMasteredRowsForCurrentScope() {
+function toggleMasteredBox(section) {
+  openMasteredDialog(section);
+}
+
+function getVocabMasteredRowsForCurrentScope(queryText = readValue("vocab-mastered-search", "")) {
   const level = document.getElementById("vocab-level-filter").value;
   const mode = document.getElementById("vocab-level-mode").value;
   const radical = document.getElementById("vocab-radical-filter").value;
-  const query = document.getElementById("vocab-mastered-search").value.trim().toLowerCase();
+  const query = (queryText || "").trim().toLowerCase();
 
   let rows = getWordsByLevelAndMode(level, mode);
   if (radical !== "all") {
@@ -1449,11 +1463,11 @@ function renderVocabMasteredBox() {
     .join("");
 }
 
-function getQuizMasteredRowsForCurrentScope() {
+function getQuizMasteredRowsForCurrentScope(queryText = readValue("quiz-mastered-search", "")) {
   const mode = readValue("quiz-mode", "radical-mc");
   const level = readValue("quiz-level", "all");
   const radicalFilter = readValue("quiz-radical-filter", "all");
-  const query = readValue("quiz-mastered-search", "").trim().toLowerCase();
+  const query = (queryText || "").trim().toLowerCase();
 
   if (mode === "word-dictation") {
     let rows = getWordsForFilters(level, radicalFilter).filter((w) => isWordMastered(w.id));
@@ -1607,8 +1621,8 @@ function getGrammarScopePoints(includeOnlyUnlearned = true) {
   return { points, scope };
 }
 
-function getGrammarMasteredRowsForCurrentScope() {
-  const query = readValue("grammar-mastered-search", "").trim().toLowerCase();
+function getGrammarMasteredRowsForCurrentScope(queryText = readValue("grammar-mastered-search", "")) {
+  const query = (queryText || "").trim().toLowerCase();
   let rows = getGrammarScopePoints(false).points.filter((p) => {
     const rec = state.progress.grammar[p.id];
     return Boolean(rec && rec.mastered);
@@ -1671,6 +1685,273 @@ function updateGrammarMasteryOverview(scopePoints = null) {
   }).length;
   const remaining = Math.max(0, total - mastered);
   el.textContent = `Mastered ${mastered} · To learn ${remaining} · Total ${total}`;
+}
+
+function masteryTimeMs(record) {
+  const value = record?.masteredAt || record?.lastReviewed || null;
+  if (!value) return 0;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function masteryTimeText(record) {
+  const value = record?.masteredAt || record?.lastReviewed || null;
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleString();
+}
+
+function masteryRankScore(record) {
+  if (!record) return 0;
+  const stage = Number.isFinite(Number(record.stage)) ? Number(record.stage) : 0;
+  const correct = Number.isFinite(Number(record.correct)) ? Number(record.correct) : 0;
+  const wrong = Number.isFinite(Number(record.wrong)) ? Number(record.wrong) : 0;
+  return stage * 1000 + correct * 10 - wrong;
+}
+
+function buildMasteredDialogItems(section, query = "") {
+  const queryText = query.trim().toLowerCase();
+  const out = [];
+
+  if (section === "vocab") {
+    getVocabMasteredRowsForCurrentScope("")
+      .map((w) => {
+        const rec = state.progress.words[w.id] || null;
+        const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+        return {
+          id: w.id,
+          kind: "word",
+          title: w.word || "-",
+          subtitle: `${w.pinyin || "-"} · ${w.meaning || "-"}`,
+          meta: `${levelLabel(w.level || 0)} · radicals: ${radicals || "-"} · stage ${rec?.stage || 0} · marked ${masteryTimeText(rec)}`,
+          markedMs: masteryTimeMs(rec),
+          rankScore: masteryRankScore(rec),
+          searchText: [w.word, w.pinyin, w.meaning, radicals, levelLabel(w.level || 0)].join(" ").toLowerCase(),
+          audioWordId: w.id,
+          restoreId: w.id,
+        };
+      })
+      .forEach((item) => out.push(item));
+  } else if (section === "quiz") {
+    const mode = readValue("quiz-mode", "radical-mc");
+    const result = getQuizMasteredRowsForCurrentScope("");
+    if (result.type === "word") {
+      result.rows.forEach((w) => {
+        const rec = state.progress.words[w.id] || null;
+        const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+        out.push({
+          id: w.id,
+          kind: "quiz-word",
+          title: w.word || "-",
+          subtitle: `${w.pinyin || "-"} · ${w.meaning || "-"}`,
+          meta: `Quiz (${mode}) · ${levelLabel(w.level || 0)} · radicals: ${radicals || "-"} · stage ${rec?.stage || 0} · marked ${masteryTimeText(rec)}`,
+          markedMs: masteryTimeMs(rec),
+          rankScore: masteryRankScore(rec),
+          searchText: [w.word, w.pinyin, w.meaning, radicals, levelLabel(w.level || 0)].join(" ").toLowerCase(),
+          audioWordId: w.id,
+          restoreId: w.id,
+        });
+      });
+    } else {
+      result.rows.forEach((r) => {
+        const rec = state.progress.radicals[r.id] || null;
+        out.push({
+          id: r.id,
+          kind: "quiz-radical",
+          title: `${r.ideograph || "-"} · No.${radicalOrderValue(r.id)}`,
+          subtitle: `${r.pinyin || "-"} · ${r.definition || "-"}`,
+          meta: `Quiz (${mode}) · stage ${rec?.stage || 0} · marked ${masteryTimeText(rec)}`,
+          markedMs: masteryTimeMs(rec),
+          rankScore: masteryRankScore(rec),
+          searchText: [r.id, r.ideograph, r.symbol, r.definition, r.pinyin, r.name].join(" ").toLowerCase(),
+          restoreId: r.id,
+        });
+      });
+    }
+  } else if (section === "grammar") {
+    getGrammarMasteredRowsForCurrentScope("").forEach((p) => {
+      const rec = state.progress.grammar[p.id] || null;
+      out.push({
+        id: p.id,
+        kind: "grammar",
+        title: `${p.code || "-"} · ${p.title || "-"}`,
+        subtitle: `${p.title_pinyin || "-"} · ${p.category || "-"}`,
+        meta: `${levelLabel(p.level || 0)} · stage ${rec?.stage || 0} · marked ${masteryTimeText(rec)}`,
+        markedMs: masteryTimeMs(rec),
+        rankScore: masteryRankScore(rec),
+        searchText: [p.code, p.title, p.title_pinyin || "", p.category || "", levelLabel(p.level || 0)].join(" ").toLowerCase(),
+        restoreId: p.id,
+      });
+    });
+  }
+
+  let rows = out;
+  if (queryText) {
+    rows = rows.filter((item) => item.searchText.includes(queryText));
+  }
+
+  const sort = state.masteredDialog.sort;
+  rows.sort((a, b) => {
+    if (sort === "time-asc") {
+      if (a.markedMs !== b.markedMs) return a.markedMs - b.markedMs;
+    } else if (sort === "time-desc") {
+      if (a.markedMs !== b.markedMs) return b.markedMs - a.markedMs;
+    } else {
+      if (a.rankScore !== b.rankScore) return b.rankScore - a.rankScore;
+      if (a.markedMs !== b.markedMs) return b.markedMs - a.markedMs;
+    }
+    return (a.title || "").localeCompare(b.title || "", "zh");
+  });
+  return rows;
+}
+
+function masteredDialogScopeText(section) {
+  if (section === "vocab") {
+    const level = readValue("vocab-level-filter", "all");
+    const levelMode = readValue("vocab-level-mode", "exact");
+    const radical = readValue("vocab-radical-filter", "all");
+    return `Vocabulary · level ${levelMode === "upto" ? "up to" : "exact"} ${level} · radical ${radical}`;
+  }
+  if (section === "quiz") {
+    const mode = readValue("quiz-mode", "radical-mc");
+    const level = readValue("quiz-level", "all");
+    const radical = readValue("quiz-radical-filter", "all");
+    return `Quiz · mode ${mode} · level ${level} · radical ${radical}`;
+  }
+  if (section === "grammar") {
+    const level = readValue("grammar-level-filter", "all");
+    const mode = readValue("grammar-level-mode", "exact");
+    return `Grammar · level ${mode === "upto" ? "up to" : "exact"} ${level}`;
+  }
+  return "Mastered Items";
+}
+
+function closeMasteredDialog() {
+  state.masteredDialog.open = false;
+  const modal = document.getElementById("mastered-modal");
+  if (modal) modal.classList.add("hidden");
+  syncModalBodyLock();
+}
+
+function openMasteredDialog(section) {
+  if (!["vocab", "quiz", "grammar"].includes(section)) return;
+  state.masteredDialog.section = section;
+  state.masteredDialog.open = true;
+  state.masteredDialog.page = 1;
+  const modal = document.getElementById("mastered-modal");
+  const search = document.getElementById("mastered-modal-search");
+  const sort = document.getElementById("mastered-modal-sort");
+  const pageSize = document.getElementById("mastered-modal-page-size");
+  if (search) {
+    search.value = state.masteredDialog.query;
+  }
+  if (sort) {
+    sort.value = state.masteredDialog.sort;
+  }
+  if (pageSize) {
+    pageSize.value = String(state.masteredDialog.pageSize);
+  }
+  if (modal) modal.classList.remove("hidden");
+  renderMasteredDialog();
+  syncModalBodyLock();
+}
+
+function renderMasteredDialog() {
+  const modal = document.getElementById("mastered-modal");
+  if (!modal || !state.masteredDialog.open) return;
+
+  const section = state.masteredDialog.section;
+  const title = document.getElementById("mastered-modal-title");
+  const scope = document.getElementById("mastered-modal-scope");
+  const info = document.getElementById("mastered-modal-info");
+  const list = document.getElementById("mastered-modal-list");
+  const pageInfo = document.getElementById("mastered-modal-page-info");
+  const prevBtn = document.getElementById("mastered-modal-prev");
+  const nextBtn = document.getElementById("mastered-modal-next");
+  if (!title || !scope || !info || !list || !pageInfo || !prevBtn || !nextBtn) return;
+
+  const sectionTitle = {
+    vocab: "Mastered Vocabulary",
+    quiz: "Mastered Quiz Items",
+    grammar: "Mastered Grammar",
+  };
+  title.textContent = sectionTitle[section] || "Mastered Items";
+  scope.textContent = masteredDialogScopeText(section);
+
+  const rows = buildMasteredDialogItems(section, state.masteredDialog.query);
+  const total = rows.length;
+  const pageSize = Math.max(1, Number(state.masteredDialog.pageSize) || 30);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  state.masteredDialog.page = Math.min(Math.max(1, state.masteredDialog.page), totalPages);
+  const offset = (state.masteredDialog.page - 1) * pageSize;
+  const pageRows = rows.slice(offset, offset + pageSize);
+
+  const sortLabel = {
+    "mastery-desc": "master mark (high to low)",
+    "time-desc": "mark time (newest first)",
+    "time-asc": "mark time (oldest first)",
+  }[state.masteredDialog.sort] || "master mark (high to low)";
+  info.textContent = `${total} mastered items · sorted by ${sortLabel}.`;
+  pageInfo.textContent = `Page ${state.masteredDialog.page} / ${totalPages}`;
+  prevBtn.disabled = state.masteredDialog.page <= 1;
+  nextBtn.disabled = state.masteredDialog.page >= totalPages;
+
+  if (!pageRows.length) {
+    list.innerHTML = '<p class="muted">No mastered items for current scope.</p>';
+    return;
+  }
+
+  list.innerHTML = pageRows
+    .map((item) => {
+      const audioBtn = item.audioWordId
+        ? `<button class="btn btn-secondary btn-small" data-mastered-modal-audio-word-id="${item.audioWordId}" ${supportsTts() ? "" : "disabled"}>Audio</button>`
+        : "";
+      return `
+        <div class="mastered-item">
+          <div>
+            <div class="mastered-word">${escapeHtml(item.title || "-")}</div>
+            <div class="muted">${escapeHtml(item.subtitle || "-")}</div>
+            <div class="mastered-item-meta">${escapeHtml(item.meta || "-")}</div>
+          </div>
+          <div class="mastered-actions">
+            ${audioBtn}
+            <button class="btn btn-secondary btn-small" data-mastered-modal-restore-kind="${item.kind}" data-mastered-modal-restore-id="${item.restoreId}">Restore</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function restoreMasteredDialogItem(kind, id) {
+  if (!kind || !id) return;
+  if (kind === "word" || kind === "quiz-word") {
+    resetReviewRecord(state.progress.words, id);
+    saveProgress();
+    renderVocabulary();
+    renderDashboard();
+    renderIntensive();
+    updateQuizQueueBadge();
+    renderQuizQuestion();
+    renderMasteredDialog();
+    return;
+  }
+  if (kind === "quiz-radical") {
+    resetReviewRecord(state.progress.radicals, id);
+    saveProgress();
+    renderRadicals();
+    renderDashboard();
+    renderIntensive();
+    updateQuizQueueBadge();
+    renderQuizQuestion();
+    renderMasteredDialog();
+    return;
+  }
+  if (kind === "grammar") {
+    toggleGrammarMastery(id, false);
+    renderMasteredDialog();
+  }
 }
 
 function isVocabAutoSpeakEnabled() {
@@ -1991,6 +2272,7 @@ function toggleVocabMastery(wordId, checked) {
     const rec = ensureReviewRecord(state.progress.words, wordId);
     applyReview(rec, true);
     rec.mastered = true;
+    rec.masteredAt = new Date().toISOString();
     addDaily("words", 1);
   } else {
     resetReviewRecord(state.progress.words, wordId);
@@ -1999,6 +2281,9 @@ function toggleVocabMastery(wordId, checked) {
   renderVocabulary();
   renderDashboard();
   renderIntensive();
+  if (state.masteredDialog.open) {
+    renderMasteredDialog();
+  }
 }
 
 function renderPronunciation() {
@@ -2435,6 +2720,9 @@ function handleTextAnswer() {
     applyReview(wordRec, correct);
     if (correct && wordRec.stage >= 2) {
       wordRec.mastered = true;
+      if (!wordRec.masteredAt) {
+        wordRec.masteredAt = new Date().toISOString();
+      }
       addDaily("words", 1);
     }
 
@@ -2531,6 +2819,7 @@ function toggleGrammarMastery(grammarId, checked) {
     const rec = ensureReviewRecord(state.progress.grammar, grammarId);
     applyReview(rec, true);
     rec.mastered = true;
+    rec.masteredAt = new Date().toISOString();
     addDaily("grammar", 1);
   } else {
     resetReviewRecord(state.progress.grammar, grammarId);
@@ -2539,6 +2828,9 @@ function toggleGrammarMastery(grammarId, checked) {
   renderGrammar();
   renderDashboard();
   renderIntensive();
+  if (state.masteredDialog.open) {
+    renderMasteredDialog();
+  }
 }
 
 function getSelectedGrammarQuizMode() {
@@ -3197,18 +3489,18 @@ function restoreRuntimeSessionState(saved) {
   state.vocab.flashQueue = asStringArray(saved.vocab?.queueIds);
   state.vocab.flashBack = Boolean(saved.vocab?.flashBack);
   state.vocab.flashOpen = Boolean(saved.vocab?.flashOpen);
-  state.boxes.vocabMasteredOpen = Boolean(saved.vocab?.boxOpen);
+  state.boxes.vocabMasteredOpen = false;
 
   state.quizSession.sessionMode = saved.quiz?.mode === "restart" ? "restart" : "continue";
   state.quizSession.sessionKey = (saved.quiz?.sessionKey || "").toString();
   state.quizSession.queue = asStringArray(saved.quiz?.queueIds);
-  state.boxes.quizMasteredOpen = Boolean(saved.quiz?.boxOpen);
+  state.boxes.quizMasteredOpen = false;
 
   state.grammarSession.sessionMode =
     saved.grammar?.mode === "restart" ? "restart" : "continue";
   state.grammarSession.sessionKey = (saved.grammar?.sessionKey || "").toString();
   state.grammarSession.queue = asStringArray(saved.grammar?.queueIds);
-  state.boxes.grammarMasteredOpen = Boolean(saved.grammar?.boxOpen);
+  state.boxes.grammarMasteredOpen = false;
 
   const quizCurrent = saved.quiz?.current || null;
   if (quizCurrent && quizCurrent.promptId) {
@@ -3285,6 +3577,52 @@ function setupEventHandlers() {
   safeBind("grammar-mastered-toggle", "click", () => {
     toggleMasteredBox("grammar");
   });
+  safeBind("mastered-modal-close", "click", () => {
+    closeMasteredDialog();
+  });
+  safeBind("mastered-modal", "click", (e) => {
+    if (!e.target.closest("[data-mastered-close]")) return;
+    closeMasteredDialog();
+  });
+  safeBind("mastered-modal-search", "input", (e) => {
+    state.masteredDialog.query = e.target.value || "";
+    state.masteredDialog.page = 1;
+    renderMasteredDialog();
+  });
+  safeBind("mastered-modal-sort", "change", (e) => {
+    state.masteredDialog.sort = e.target.value || "mastery-desc";
+    state.masteredDialog.page = 1;
+    renderMasteredDialog();
+  });
+  safeBind("mastered-modal-page-size", "change", (e) => {
+    const size = Number(e.target.value);
+    state.masteredDialog.pageSize = Number.isFinite(size) ? Math.max(1, size) : 30;
+    state.masteredDialog.page = 1;
+    renderMasteredDialog();
+  });
+  safeBind("mastered-modal-prev", "click", () => {
+    state.masteredDialog.page = Math.max(1, state.masteredDialog.page - 1);
+    renderMasteredDialog();
+  });
+  safeBind("mastered-modal-next", "click", () => {
+    state.masteredDialog.page += 1;
+    renderMasteredDialog();
+  });
+  safeBind("mastered-modal-list", "click", (e) => {
+    const restoreBtn = e.target.closest("button[data-mastered-modal-restore-kind]");
+    if (restoreBtn) {
+      restoreMasteredDialogItem(
+        restoreBtn.dataset.masteredModalRestoreKind,
+        restoreBtn.dataset.masteredModalRestoreId
+      );
+      return;
+    }
+
+    const audioBtn = e.target.closest("button[data-mastered-modal-audio-word-id]");
+    if (!audioBtn) return;
+    const word = findWordById(audioBtn.dataset.masteredModalAudioWordId);
+    speakVocabWord(word);
+  });
 
   [
     "radical-level-filter",
@@ -3309,12 +3647,16 @@ function setupEventHandlers() {
       } else {
         applyReview(rec, true);
         rec.mastered = true;
+        rec.masteredAt = new Date().toISOString();
         addDaily("radicals", 1);
       }
       saveProgress();
       renderRadicals();
       renderDashboard();
       renderIntensive();
+      if (state.masteredDialog.open) {
+        renderMasteredDialog();
+      }
     } else if (action === "review-correct") {
       const rec = ensureReviewRecord(state.progress.radicals, id);
       applyReview(rec, true);
@@ -3485,6 +3827,13 @@ function setupEventHandlers() {
     if (e.key === "Escape") {
       e.preventDefault();
       closeGrammarQuizModal();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!state.masteredDialog.open) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMasteredDialog();
     }
   });
 

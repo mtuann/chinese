@@ -152,7 +152,7 @@
 
             <div class="action-row">
               <button id="quiz-start" class="btn">Start / Resume</button>
-              <button id="quiz-mastered-toggle" class="btn btn-secondary">Show Mastered Box</button>
+              <button id="quiz-mastered-toggle" class="btn btn-secondary">Open Mastered Dialog</button>
             </div>
 
             <article id="quiz-mastered-box" class="mastered-box hidden">
@@ -235,7 +235,7 @@
               </select>
             </div>
             <button class="btn" id="vocab-flash-start">Open Flashcards</button>
-            <button class="btn btn-secondary" id="vocab-mastered-toggle">Show Mastered Box</button>
+            <button class="btn btn-secondary" id="vocab-mastered-toggle">Open Mastered Dialog</button>
             <button class="btn btn-secondary" id="vocab-clear-col-filters">Clear column filters</button>
             <label class="checkbox-line vocab-audio-toggle">
               <input id="vocab-audio-auto" type="checkbox" checked />
@@ -322,7 +322,7 @@
                   </select>
                 </div>
                 <button id="grammar-quiz-start" class="btn">Start / Resume</button>
-                <button id="grammar-mastered-toggle" class="btn btn-secondary">Show Mastered Box</button>
+                <button id="grammar-mastered-toggle" class="btn btn-secondary">Open Mastered Dialog</button>
               </div>
             </div>
             <p id="grammar-queue-info" class="queue-badge">Queue: 0/0 remaining</p>
@@ -526,6 +526,46 @@
           <div id="grammar-quiz-options" class="quiz-options"></div>
           <p id="grammar-quiz-feedback" class="quiz-feedback"></p>
           <button id="grammar-quiz-next" class="btn btn-secondary hidden">Next</button>
+        </div>
+      </article>
+    </div>
+
+    <div id="mastered-modal" class="flash-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mastered-modal-title">
+      <button class="flash-modal-backdrop" data-mastered-close="1" aria-label="Close mastered dialog"></button>
+      <article class="panel flash-modal-card mastered-modal-card">
+        <div class="quiz-topline">
+          <h3 id="mastered-modal-title">Mastered Items</h3>
+          <button id="mastered-modal-close" class="btn btn-secondary">Close</button>
+        </div>
+        <p id="mastered-modal-scope" class="muted">Scope</p>
+        <div class="controls-grid compact mastered-modal-controls">
+          <label>
+            Search
+            <input id="mastered-modal-search" type="search" placeholder="word / pinyin / meaning / code / radical" />
+          </label>
+          <label>
+            Sort
+            <select id="mastered-modal-sort">
+              <option value="mastery-desc">Master mark (high to low)</option>
+              <option value="time-desc">Mark time (newest first)</option>
+              <option value="time-asc">Mark time (oldest first)</option>
+            </select>
+          </label>
+          <label>
+            Page size
+            <select id="mastered-modal-page-size">
+              <option value="20">20</option>
+              <option value="30" selected>30</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+        <p id="mastered-modal-info" class="result-info">0 items.</p>
+        <div id="mastered-modal-list" class="mastered-list mastered-modal-list"></div>
+        <div class="pager mastered-modal-pager">
+          <button class="btn btn-secondary" id="mastered-modal-prev">Previous</button>
+          <span id="mastered-modal-page-info" class="muted">Page 1 / 1</span>
+          <button class="btn btn-secondary" id="mastered-modal-next">Next</button>
         </div>
       </article>
     </div>
