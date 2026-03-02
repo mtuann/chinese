@@ -137,6 +137,7 @@
               </select>
             </label>
           </div>
+          <p class="result-info" id="quiz-mastery-overview">Mastered 0 · To learn 0 · Total 0</p>
 
           <div class="quiz-shell panel">
             <div class="quiz-topline">
@@ -147,7 +148,25 @@
               </div>
             </div>
 
-            <button id="quiz-start" class="btn">Start / Resume</button>
+            <div class="action-row">
+              <button id="quiz-start" class="btn">Start / Resume</button>
+              <button id="quiz-mastered-toggle" class="btn btn-secondary">Show Mastered Box</button>
+            </div>
+
+            <article id="quiz-mastered-box" class="mastered-box hidden">
+              <div class="quiz-topline">
+                <h3>Mastered Box</h3>
+                <button class="btn btn-secondary" id="quiz-mastered-refresh">Refresh</button>
+              </div>
+              <div class="controls-grid compact">
+                <label>
+                  Search mastered items
+                  <input id="quiz-mastered-search" type="search" placeholder="symbol / pinyin / definition / word" />
+                </label>
+              </div>
+              <p class="result-info" id="quiz-mastered-info">0 mastered items.</p>
+              <div id="quiz-mastered-list" class="mastered-list"></div>
+            </article>
 
             <div id="quiz-question-wrap" class="quiz-question-wrap hidden">
               <p id="quiz-question" class="quiz-question"></p>
@@ -205,21 +224,37 @@
           </div>
 
           <p class="result-info" id="vocab-result-info"></p>
+          <p class="result-info" id="vocab-mastery-overview">Mastered 0 · To learn 0 · Total 0</p>
           <div class="vocab-toolbar">
-            <label>
-              Flash mode
+            <div class="toolbar-select">
               <select id="vocab-flash-mode">
                 <option value="continue">Continue learning (hide mastered)</option>
                 <option value="restart">Restart from beginning (show all)</option>
               </select>
-            </label>
+            </div>
             <button class="btn" id="vocab-flash-start">Open Flashcards</button>
+            <button class="btn btn-secondary" id="vocab-mastered-toggle">Show Mastered Box</button>
             <button class="btn btn-secondary" id="vocab-clear-col-filters">Clear column filters</button>
             <label class="checkbox-line vocab-audio-toggle">
               <input id="vocab-audio-auto" type="checkbox" checked />
               Auto speak flashcards
             </label>
           </div>
+
+          <article id="vocab-mastered-box" class="mastered-box hidden">
+            <div class="quiz-topline">
+              <h3>Mastered Box</h3>
+              <button class="btn btn-secondary" id="vocab-mastered-refresh">Refresh</button>
+            </div>
+            <div class="controls-grid compact">
+              <label>
+                Search mastered words
+                <input id="vocab-mastered-search" type="search" placeholder="word / pinyin / meaning" />
+              </label>
+            </div>
+            <p class="result-info" id="vocab-mastered-info">0 mastered words.</p>
+            <div id="vocab-mastered-list" class="mastered-list"></div>
+          </article>
 
           <div class="vocab-table-wrap">
             <table class="vocab-table">
@@ -265,21 +300,6 @@
             <span id="vocab-page-info" class="muted">Page 1 / 1</span>
             <button class="btn btn-secondary" id="vocab-next-page">Next</button>
           </div>
-
-          <article class="panel mastered-box">
-            <div class="quiz-topline">
-              <h3>Mastered Box</h3>
-              <button class="btn btn-secondary" id="vocab-mastered-refresh">Refresh</button>
-            </div>
-            <div class="controls-grid compact">
-              <label>
-                Search mastered words
-                <input id="vocab-mastered-search" type="search" placeholder="word / pinyin / meaning" />
-              </label>
-            </div>
-            <p class="result-info" id="vocab-mastered-info">0 mastered words.</p>
-            <div id="vocab-mastered-list" class="mastered-list"></div>
-          </article>
         </section>
 
         <section class="tab" id="tab-grammar">
@@ -300,11 +320,28 @@
                   </select>
                 </label>
                 <button id="grammar-quiz-start" class="btn">Start / Resume</button>
+                <button id="grammar-mastered-toggle" class="btn btn-secondary">Show Mastered Box</button>
               </div>
             </div>
             <p id="grammar-queue-info" class="queue-badge">Queue: 0/0 remaining</p>
+            <p class="result-info" id="grammar-mastery-overview">Mastered 0 · To learn 0 · Total 0</p>
             <p class="muted">Mở quiz dạng modal để tập trung luyện nhanh theo level hiện tại.</p>
           </div>
+
+          <article id="grammar-mastered-box" class="mastered-box hidden">
+            <div class="quiz-topline">
+              <h3>Mastered Box</h3>
+              <button class="btn btn-secondary" id="grammar-mastered-refresh">Refresh</button>
+            </div>
+            <div class="controls-grid compact">
+              <label>
+                Search mastered grammar
+                <input id="grammar-mastered-search" type="search" placeholder="code / title / category" />
+              </label>
+            </div>
+            <p class="result-info" id="grammar-mastered-info">0 mastered grammar points.</p>
+            <div id="grammar-mastered-list" class="mastered-list"></div>
+          </article>
 
           <div class="controls-grid">
             <label>

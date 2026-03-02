@@ -207,6 +207,11 @@ const state = {
     sessionKey: "",
     queue: [],
   },
+  boxes: {
+    vocabMasteredOpen: false,
+    quizMasteredOpen: false,
+    grammarMasteredOpen: false,
+  },
   timer: {
     remaining: 25 * 60,
     running: false,
@@ -251,12 +256,14 @@ function defaultStudySession() {
       historyIds: [],
       historyIndex: -1,
       queueIds: [],
+      boxOpen: false,
       filters: {},
     },
     quiz: {
       mode: "continue",
       sessionKey: "",
       queueIds: [],
+      boxOpen: false,
       controls: {},
       current: null,
     },
@@ -264,6 +271,7 @@ function defaultStudySession() {
       mode: "continue",
       sessionKey: "",
       queueIds: [],
+      boxOpen: false,
       controls: {},
       current: null,
       open: false,
@@ -300,6 +308,7 @@ function mergeStudySession(raw) {
       ? Number(vocab.historyIndex)
       : -1,
     queueIds: asStringArray(vocab.queueIds),
+    boxOpen: Boolean(vocab.boxOpen),
     filters: vocab.filters && typeof vocab.filters === "object" ? vocab.filters : {},
   };
 
@@ -309,6 +318,7 @@ function mergeStudySession(raw) {
     mode: quiz.mode === "restart" ? "restart" : "continue",
     sessionKey: (quiz.sessionKey || "").toString(),
     queueIds: asStringArray(quiz.queueIds),
+    boxOpen: Boolean(quiz.boxOpen),
     controls: quiz.controls && typeof quiz.controls === "object" ? quiz.controls : {},
     current: quiz.current && typeof quiz.current === "object" ? quiz.current : null,
   };
@@ -319,6 +329,7 @@ function mergeStudySession(raw) {
     mode: grammar.mode === "restart" ? "restart" : "continue",
     sessionKey: (grammar.sessionKey || "").toString(),
     queueIds: asStringArray(grammar.queueIds),
+    boxOpen: Boolean(grammar.boxOpen),
     controls:
       grammar.controls && typeof grammar.controls === "object" ? grammar.controls : {},
     current: grammar.current && typeof grammar.current === "object" ? grammar.current : null,
@@ -568,6 +579,19 @@ function uniqueStringIds(ids) {
     out.push(id);
   });
   return out;
+}
+
+function radicalOrderValue(id) {
+  const n = Number.parseInt(String(id || "").trim(), 10);
+  if (Number.isFinite(n)) return n;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function compareRadicalIds(a, b) {
+  const av = radicalOrderValue(a);
+  const bv = radicalOrderValue(b);
+  if (av !== bv) return av - bv;
+  return String(a).localeCompare(String(b), "en");
 }
 
 function sanitizeQueueIds(queueIds, poolIds) {
@@ -1143,9 +1167,11 @@ function refreshVocabRadicalFilter() {
   pool.forEach((w) => (w.radical_ids || []).forEach((rid) => used.add(rid)));
   const options = ['<option value="all">All radicals</option>'];
   [...used]
-    .sort((a, b) => a.localeCompare(b, "en"))
+    .sort(compareRadicalIds)
     .forEach((rid) => {
-      options.push(`<option value="${rid}">${getRadicalIdeographById(rid)} · No.${rid}</option>`);
+      options.push(
+        `<option value="${rid}">${getRadicalIdeographById(rid)} · No.${radicalOrderValue(rid)}</option>`
+      );
     });
   select.innerHTML = options.join("");
   const optionExists = [...select.options].some((o) => o.value === previous);
@@ -1298,7 +1324,62 @@ function ensureFlashHasCurrentWord() {
   return true;
 }
 
-function getMasteredRowsForCurrentScope() {
+function setMasteredBoxVisibility(section, open) {
+  const bySection = {
+    vocab: {
+      panelId: "vocab-mastered-box",
+      buttonId: "vocab-mastered-toggle",
+      showLabel: "Show Mastered Box",
+      hideLabel: "Hide Mastered Box",
+      key: "vocabMasteredOpen",
+    },
+    quiz: {
+      panelId: "quiz-mastered-box",
+      buttonId: "quiz-mastered-toggle",
+      showLabel: "Show Mastered Box",
+      hideLabel: "Hide Mastered Box",
+      key: "quizMasteredOpen",
+    },
+    grammar: {
+      panelId: "grammar-mastered-box",
+      buttonId: "grammar-mastered-toggle",
+      showLabel: "Show Mastered Box",
+      hideLabel: "Hide Mastered Box",
+      key: "grammarMasteredOpen",
+    },
+  };
+
+  const conf = bySection[section];
+  if (!conf) return;
+  const panel = document.getElementById(conf.panelId);
+  const btn = document.getElementById(conf.buttonId);
+  state.boxes[conf.key] = Boolean(open);
+  if (panel) panel.classList.toggle("hidden", !state.boxes[conf.key]);
+  if (btn) btn.textContent = state.boxes[conf.key] ? conf.hideLabel : conf.showLabel;
+}
+
+function toggleMasteredBox(section) {
+  const keyMap = {
+    vocab: "vocabMasteredOpen",
+    quiz: "quizMasteredOpen",
+    grammar: "grammarMasteredOpen",
+  };
+  const key = keyMap[section];
+  if (!key) return;
+  setMasteredBoxVisibility(section, !state.boxes[key]);
+  if (section === "vocab" && state.boxes[key]) {
+    renderVocabMasteredBox();
+  }
+  if (section === "quiz" && state.boxes[key]) {
+    renderQuizMasteredBox();
+  }
+  if (section === "grammar" && state.boxes[key]) {
+    renderGrammarMasteredBox();
+  }
+  saveStudySession();
+}
+
+function getVocabMasteredRowsForCurrentScope() {
   const level = document.getElementById("vocab-level-filter").value;
   const mode = document.getElementById("vocab-level-mode").value;
   const radical = document.getElementById("vocab-radical-filter").value;
@@ -1325,8 +1406,18 @@ function getMasteredRowsForCurrentScope() {
   return rows;
 }
 
+function updateVocabMasteryOverview() {
+  const el = document.getElementById("vocab-mastery-overview");
+  if (!el) return;
+
+  const total = state.vocab.flashSourceRows.length;
+  const mastered = state.vocab.flashSourceRows.filter((w) => isWordMastered(w.id)).length;
+  const remaining = Math.max(0, total - mastered);
+  el.textContent = `Mastered ${mastered} · To learn ${remaining} · Total ${total}`;
+}
+
 function renderVocabMasteredBox() {
-  const rows = getMasteredRowsForCurrentScope();
+  const rows = getVocabMasteredRowsForCurrentScope();
   const info = document.getElementById("vocab-mastered-info");
   const list = document.getElementById("vocab-mastered-list");
   info.textContent = `${rows.length} mastered words in current scope.`;
@@ -1355,6 +1446,230 @@ function renderVocabMasteredBox() {
       `;
     })
     .join("");
+}
+
+function getQuizMasteredRowsForCurrentScope() {
+  const mode = readValue("quiz-mode", "radical-mc");
+  const level = readValue("quiz-level", "all");
+  const radicalFilter = readValue("quiz-radical-filter", "all");
+  const query = readValue("quiz-mastered-search", "").trim().toLowerCase();
+
+  if (mode === "word-dictation") {
+    let rows = getWordsForFilters(level, radicalFilter).filter((w) => isWordMastered(w.id));
+    if (query) {
+      rows = rows.filter((w) => {
+        const hay = [w.word, w.pinyin, w.meaning, ...(w.radical_ids || [])]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(query);
+      });
+    }
+    rows.sort((a, b) => {
+      if (a.level !== b.level) return a.level - b.level;
+      if (a.frequency !== b.frequency) return a.frequency - b.frequency;
+      return (a.word || "").localeCompare(b.word || "", "zh");
+    });
+    return { type: "word", rows };
+  }
+
+  let rows = getRadicalPoolForLevel(level).filter((r) => {
+    const rec = state.progress.radicals[r.id];
+    return Boolean(rec && rec.mastered);
+  });
+  if (query) {
+    rows = rows.filter((r) => {
+      const hay = [r.id, r.ideograph, r.symbol, r.definition, r.pinyin, r.name]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(query);
+    });
+  }
+  rows.sort((a, b) => compareRadicalIds(a.id, b.id));
+  return { type: "radical", rows };
+}
+
+function renderQuizMasteredBox() {
+  const info = document.getElementById("quiz-mastered-info");
+  const list = document.getElementById("quiz-mastered-list");
+  if (!info || !list) return;
+
+  const result = getQuizMasteredRowsForCurrentScope();
+  const rows = result.rows;
+  info.textContent =
+    result.type === "word"
+      ? `${rows.length} mastered words in current scope.`
+      : `${rows.length} mastered radicals in current scope.`;
+
+  if (!rows.length) {
+    list.innerHTML = '<p class="muted">No mastered items for current filters.</p>';
+    return;
+  }
+
+  if (result.type === "word") {
+    list.innerHTML = rows
+      .slice(0, 240)
+      .map((w) => {
+        const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+        return `
+          <div class="mastered-item">
+            <div>
+              <div class="mastered-word">${escapeHtml(w.word || "-")}</div>
+              <div class="muted">${escapeHtml(w.pinyin || "-")} · ${escapeHtml(w.meaning || "-")}</div>
+              <div class="muted">${escapeHtml(levelLabel(w.level || 0))} · radicals: ${escapeHtml(radicals || "-")}</div>
+            </div>
+            <div class="mastered-actions">
+              <button class="btn btn-secondary btn-small" data-quiz-mastered-audio-word-id="${w.id}" ${supportsTts() ? "" : "disabled"}>Audio</button>
+              <button class="btn btn-secondary btn-small" data-quiz-mastered-restore-word-id="${w.id}">Restore</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+    return;
+  }
+
+  list.innerHTML = rows
+    .slice(0, 240)
+    .map((r) => {
+      return `
+        <div class="mastered-item">
+          <div>
+            <div class="mastered-word">${escapeHtml(r.ideograph || "-")} · No.${escapeHtml(radicalOrderValue(r.id))}</div>
+            <div class="muted">${escapeHtml(r.pinyin || "-")} · ${escapeHtml(r.definition || "-")}</div>
+            <div class="muted">First seen: ${r.first_hsk_level ? escapeHtml(levelLabel(r.first_hsk_level)) : "N/A"}</div>
+          </div>
+          <div class="mastered-actions">
+            <button class="btn btn-secondary btn-small" data-quiz-mastered-restore-radical-id="${r.id}">Restore</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function updateQuizMasteryOverview() {
+  const el = document.getElementById("quiz-mastery-overview");
+  if (!el) return;
+
+  const mode = readValue("quiz-mode", "radical-mc");
+  const level = readValue("quiz-level", "all");
+  const radicalFilter = readValue("quiz-radical-filter", "all");
+  const promptIds = getQuizPromptIds(mode, level, radicalFilter);
+  let mastered = 0;
+  if (mode === "word-dictation") {
+    mastered = promptIds.filter((id) => isWordMastered(id)).length;
+  } else {
+    mastered = promptIds.filter((id) => {
+      const rec = state.progress.radicals[id];
+      return Boolean(rec && rec.mastered);
+    }).length;
+  }
+  const total = promptIds.length;
+  const remaining = Math.max(0, total - mastered);
+  el.textContent = `Mastered ${mastered} · To learn ${remaining} · Total ${total}`;
+}
+
+function getGrammarScopePoints(includeOnlyUnlearned = true) {
+  const level = readValue("grammar-level-filter", "all");
+  const mode = readValue("grammar-level-mode", "exact");
+  const search = readValue("grammar-search", "").trim().toLowerCase();
+  const onlyUnlearned = readChecked("grammar-only-unlearned", false);
+
+  let points = [...state.data.grammar];
+  if (level !== "all") {
+    const lv = Number(level);
+    points = points.filter((p) => (mode === "upto" ? p.level <= lv : p.level === lv));
+  }
+  if (search) {
+    points = points.filter((p) => {
+      const hay = [
+        p.code,
+        p.title,
+        p.title_pinyin || "",
+        p.category,
+        ...(p.examples || []),
+        ...(p.examples_pinyin || []),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(search);
+    });
+  }
+
+  const scope = [...points];
+  if (includeOnlyUnlearned && onlyUnlearned) {
+    points = points.filter((p) => {
+      const rec = state.progress.grammar[p.id];
+      return !(rec && rec.mastered);
+    });
+  }
+  return { points, scope };
+}
+
+function getGrammarMasteredRowsForCurrentScope() {
+  const query = readValue("grammar-mastered-search", "").trim().toLowerCase();
+  let rows = getGrammarScopePoints(false).points.filter((p) => {
+    const rec = state.progress.grammar[p.id];
+    return Boolean(rec && rec.mastered);
+  });
+
+  if (query) {
+    rows = rows.filter((p) => {
+      const hay = [p.code, p.title, p.title_pinyin || "", p.category || ""].join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (a.level !== b.level) return a.level - b.level;
+    return (a.code || "").localeCompare(b.code || "", "en");
+  });
+  return rows;
+}
+
+function renderGrammarMasteredBox() {
+  const info = document.getElementById("grammar-mastered-info");
+  const list = document.getElementById("grammar-mastered-list");
+  if (!info || !list) return;
+  const rows = getGrammarMasteredRowsForCurrentScope();
+  info.textContent = `${rows.length} mastered grammar points in current scope.`;
+
+  if (!rows.length) {
+    list.innerHTML = '<p class="muted">No mastered grammar points for current filters.</p>';
+    return;
+  }
+
+  list.innerHTML = rows
+    .slice(0, 240)
+    .map((p) => {
+      return `
+        <div class="mastered-item">
+          <div>
+            <div class="mastered-word">${escapeHtml(p.code || "-")} · ${escapeHtml(p.title || "-")}</div>
+            <div class="muted">${p.title_pinyin ? escapeHtml(p.title_pinyin) : "-"} · ${escapeHtml(p.category || "-")}</div>
+            <div class="muted">${escapeHtml(levelLabel(p.level || 0))}</div>
+          </div>
+          <div class="mastered-actions">
+            <button class="btn btn-secondary btn-small" data-grammar-mastered-restore-id="${p.id}">Restore</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function updateGrammarMasteryOverview(scopePoints = null) {
+  const el = document.getElementById("grammar-mastery-overview");
+  if (!el) return;
+
+  const points = Array.isArray(scopePoints) ? scopePoints : getGrammarScopePoints(false).points;
+  const total = points.length;
+  const mastered = points.filter((p) => {
+    const rec = state.progress.grammar[p.id];
+    return Boolean(rec && rec.mastered);
+  }).length;
+  const remaining = Math.max(0, total - mastered);
+  el.textContent = `Mastered ${mastered} · To learn ${remaining} · Total ${total}`;
 }
 
 function isVocabAutoSpeakEnabled() {
@@ -1564,6 +1879,7 @@ function renderVocabulary(resetPage = false) {
 
   rows = applyVocabColumnFilters(rows, columnFilters);
   state.vocab.flashSourceRows = [...rows];
+  updateVocabMasteryOverview();
 
   if (onlyUnlearned) {
     rows = rows.filter((w) => !(state.progress.words[w.id] && state.progress.words[w.id].mastered));
@@ -1661,7 +1977,10 @@ function renderVocabulary(resetPage = false) {
   document.getElementById("vocab-page-info").textContent = `Page ${state.vocab.page} / ${totalPages}`;
   document.getElementById("vocab-prev-page").disabled = state.vocab.page <= 1;
   document.getElementById("vocab-next-page").disabled = state.vocab.page >= totalPages;
-  renderVocabMasteredBox();
+  if (state.boxes.vocabMasteredOpen) {
+    renderVocabMasteredBox();
+  }
+  setMasteredBoxVisibility("vocab", state.boxes.vocabMasteredOpen);
   renderVocabFlashcard();
   saveStudySession();
 }
@@ -1780,9 +2099,9 @@ function refreshQuizRadicalFilter() {
 
   const pool = getRadicalPoolForLevel(level);
   const opts = ['<option value="all">All radicals</option>'];
-  pool.forEach((r) => {
+  [...pool].sort((a, b) => compareRadicalIds(a.id, b.id)).forEach((r) => {
     opts.push(
-      `<option value="${r.id}">${r.ideograph} · ${r.id} · ${r.definition || ""}</option>`
+      `<option value="${r.id}">${r.ideograph} · No.${radicalOrderValue(r.id)} · ${r.definition || ""}</option>`
     );
   });
   select.innerHTML = opts.join("");
@@ -1808,6 +2127,11 @@ function updateQuizQueueBadge() {
   const modeLabel =
     getSelectedQuizSessionMode() === "continue" ? "continue mode" : "restart mode";
   el.textContent = `Queue: ${remain}/${poolIds.length} remaining · ${modeLabel}`;
+  updateQuizMasteryOverview();
+  if (state.boxes.quizMasteredOpen) {
+    renderQuizMasteredBox();
+  }
+  setMasteredBoxVisibility("quiz", state.boxes.quizMasteredOpen);
 }
 
 function setFeedbackState(el, correct, text) {
@@ -1896,6 +2220,7 @@ function renderQuizQuestion() {
   const q = state.currentQuiz;
   if (!q) {
     wrap.classList.add("hidden");
+    updateQuizQueueBadge();
     saveStudySession();
     return;
   }
@@ -2137,40 +2462,10 @@ function handleTextAnswer() {
 }
 
 function renderGrammar() {
-  const level = document.getElementById("grammar-level-filter").value;
-  const mode = document.getElementById("grammar-level-mode").value;
-  const search = document.getElementById("grammar-search").value.trim().toLowerCase();
-  const onlyUnlearned = document.getElementById("grammar-only-unlearned").checked;
   const showPinyin = document.getElementById("grammar-show-pinyin").checked;
-
-  let points = [...state.data.grammar];
-  if (level !== "all") {
-    const lv = Number(level);
-    points = points.filter((p) => (mode === "upto" ? p.level <= lv : p.level === lv));
-  }
-
-  if (search) {
-    points = points.filter((p) => {
-      const hay = [
-        p.code,
-        p.title,
-        p.title_pinyin || "",
-        p.category,
-        ...(p.examples || []),
-        ...(p.examples_pinyin || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(search);
-    });
-  }
-
-  if (onlyUnlearned) {
-    points = points.filter((p) => {
-      const rec = state.progress.grammar[p.id];
-      return !(rec && rec.mastered);
-    });
-  }
+  const filtered = getGrammarScopePoints(true);
+  const points = filtered.points;
+  const scopePoints = filtered.scope;
 
   const list = document.getElementById("grammar-list");
   const info = document.getElementById("grammar-result-info");
@@ -2221,6 +2516,11 @@ function renderGrammar() {
     list.appendChild(card);
   });
 
+  updateGrammarMasteryOverview(scopePoints);
+  if (state.boxes.grammarMasteredOpen) {
+    renderGrammarMasteredBox();
+  }
+  setMasteredBoxVisibility("grammar", state.boxes.grammarMasteredOpen);
   updateGrammarQueueBadge();
   saveStudySession();
 }
@@ -2260,6 +2560,11 @@ function updateGrammarQueueBadge() {
 
   if (cta) cta.textContent = text;
   if (modal) modal.textContent = text;
+  updateGrammarMasteryOverview();
+  if (state.boxes.grammarMasteredOpen) {
+    renderGrammarMasteredBox();
+  }
+  setMasteredBoxVisibility("grammar", state.boxes.grammarMasteredOpen);
 }
 
 function getGrammarQuizPool(level, mode) {
@@ -2756,6 +3061,7 @@ function captureQuizSessionControls() {
     mode: readValue("quiz-mode", "radical-mc"),
     level: readValue("quiz-level", "all"),
     radicalFilter: readValue("quiz-radical-filter", "all"),
+    masteredSearch: readValue("quiz-mastered-search", ""),
   };
 }
 
@@ -2766,6 +3072,7 @@ function captureGrammarSessionControls() {
     search: readValue("grammar-search", ""),
     onlyUnlearned: readChecked("grammar-only-unlearned", false),
     showPinyin: readChecked("grammar-show-pinyin", true),
+    masteredSearch: readValue("grammar-mastered-search", ""),
   };
 }
 
@@ -2781,6 +3088,7 @@ function saveStudySession() {
         ? Number(state.vocab.flashIndex)
         : -1,
       queueIds: asStringArray(state.vocab.flashQueue),
+      boxOpen: Boolean(state.boxes.vocabMasteredOpen),
       filters: captureVocabSessionFilters(),
     };
 
@@ -2788,6 +3096,7 @@ function saveStudySession() {
       mode: state.quizSession.sessionMode === "restart" ? "restart" : "continue",
       sessionKey: state.quizSession.sessionKey || "",
       queueIds: asStringArray(state.quizSession.queue),
+      boxOpen: Boolean(state.boxes.quizMasteredOpen),
       controls: captureQuizSessionControls(),
       current: serializeCurrentQuiz(),
     };
@@ -2796,6 +3105,7 @@ function saveStudySession() {
       mode: state.grammarSession.sessionMode === "restart" ? "restart" : "continue",
       sessionKey: state.grammarSession.sessionKey || "",
       queueIds: asStringArray(state.grammarSession.queue),
+      boxOpen: Boolean(state.boxes.grammarMasteredOpen),
       controls: captureGrammarSessionControls(),
       current: serializeCurrentGrammarQuiz(),
       open: Boolean(state.grammarQuizOpen),
@@ -2834,6 +3144,7 @@ function applySavedControlState(saved) {
   setSelectValue("quiz-level", quizControls.level);
   refreshQuizRadicalFilter();
   setSelectValue("quiz-radical-filter", quizControls.radicalFilter);
+  setInputValue("quiz-mastered-search", quizControls.masteredSearch);
   setSelectValue("quiz-session-mode", saved.quiz?.mode || "continue");
 
   const grammarControls = saved.grammar?.controls || {};
@@ -2842,6 +3153,7 @@ function applySavedControlState(saved) {
   setInputValue("grammar-search", grammarControls.search);
   setCheckboxValue("grammar-only-unlearned", grammarControls.onlyUnlearned);
   setCheckboxValue("grammar-show-pinyin", grammarControls.showPinyin);
+  setInputValue("grammar-mastered-search", grammarControls.masteredSearch);
   setSelectValue("grammar-quiz-mode", saved.grammar?.mode || "continue");
 }
 
@@ -2856,15 +3168,18 @@ function restoreRuntimeSessionState(saved) {
   state.vocab.flashQueue = asStringArray(saved.vocab?.queueIds);
   state.vocab.flashBack = Boolean(saved.vocab?.flashBack);
   state.vocab.flashOpen = Boolean(saved.vocab?.flashOpen);
+  state.boxes.vocabMasteredOpen = Boolean(saved.vocab?.boxOpen);
 
   state.quizSession.sessionMode = saved.quiz?.mode === "restart" ? "restart" : "continue";
   state.quizSession.sessionKey = (saved.quiz?.sessionKey || "").toString();
   state.quizSession.queue = asStringArray(saved.quiz?.queueIds);
+  state.boxes.quizMasteredOpen = Boolean(saved.quiz?.boxOpen);
 
   state.grammarSession.sessionMode =
     saved.grammar?.mode === "restart" ? "restart" : "continue";
   state.grammarSession.sessionKey = (saved.grammar?.sessionKey || "").toString();
   state.grammarSession.queue = asStringArray(saved.grammar?.queueIds);
+  state.boxes.grammarMasteredOpen = Boolean(saved.grammar?.boxOpen);
 
   const quizCurrent = saved.quiz?.current || null;
   if (quizCurrent && quizCurrent.promptId) {
@@ -2982,7 +3297,20 @@ function setupEventHandlers() {
 
   document.getElementById("quiz-session-mode").addEventListener("change", () => {
     state.quizSession.sessionMode = getSelectedQuizSessionMode();
+    updateQuizQueueBadge();
     saveStudySession();
+  });
+
+  document.getElementById("quiz-mastered-toggle").addEventListener("click", () => {
+    toggleMasteredBox("quiz");
+  });
+  document.getElementById("quiz-mastered-refresh").addEventListener("click", () => {
+    renderQuizMasteredBox();
+  });
+  document.getElementById("quiz-mastered-search").addEventListener("input", () => {
+    if (state.boxes.quizMasteredOpen) {
+      renderQuizMasteredBox();
+    }
   });
 
   document.getElementById("quiz-start").addEventListener("click", () => {
@@ -3046,11 +3374,16 @@ function setupEventHandlers() {
     clearVocabColumnFilters();
     renderVocabulary(true);
   });
+  document.getElementById("vocab-mastered-toggle").addEventListener("click", () => {
+    toggleMasteredBox("vocab");
+  });
   document.getElementById("vocab-mastered-refresh").addEventListener("click", () => {
     renderVocabMasteredBox();
   });
   document.getElementById("vocab-mastered-search").addEventListener("input", () => {
-    renderVocabMasteredBox();
+    if (state.boxes.vocabMasteredOpen) {
+      renderVocabMasteredBox();
+    }
   });
 
   document.getElementById("vocab-flash-start").addEventListener("click", () => {
@@ -3138,6 +3471,38 @@ function setupEventHandlers() {
     }
   });
 
+  document.getElementById("quiz-mastered-list").addEventListener("click", (e) => {
+    const restoreRadicalBtn = e.target.closest("button[data-quiz-mastered-restore-radical-id]");
+    if (restoreRadicalBtn) {
+      resetReviewRecord(state.progress.radicals, restoreRadicalBtn.dataset.quizMasteredRestoreRadicalId);
+      saveProgress();
+      renderRadicals();
+      renderDashboard();
+      renderIntensive();
+      updateQuizQueueBadge();
+      renderQuizQuestion();
+      return;
+    }
+
+    const restoreWordBtn = e.target.closest("button[data-quiz-mastered-restore-word-id]");
+    if (restoreWordBtn) {
+      resetReviewRecord(state.progress.words, restoreWordBtn.dataset.quizMasteredRestoreWordId);
+      saveProgress();
+      renderVocabulary();
+      renderDashboard();
+      renderIntensive();
+      updateQuizQueueBadge();
+      renderQuizQuestion();
+      return;
+    }
+
+    const audioWordBtn = e.target.closest("button[data-quiz-mastered-audio-word-id]");
+    if (audioWordBtn) {
+      const word = findWordById(audioWordBtn.dataset.quizMasteredAudioWordId);
+      speakVocabWord(word);
+    }
+  });
+
   document.getElementById("vocab-prev-page").addEventListener("click", () => {
     state.vocab.page = Math.max(1, state.vocab.page - 1);
     renderVocabulary();
@@ -3176,7 +3541,19 @@ function setupEventHandlers() {
   });
   document.getElementById("grammar-quiz-mode").addEventListener("change", () => {
     state.grammarSession.sessionMode = getSelectedGrammarQuizMode();
+    updateGrammarQueueBadge();
     saveStudySession();
+  });
+  document.getElementById("grammar-mastered-toggle").addEventListener("click", () => {
+    toggleMasteredBox("grammar");
+  });
+  document.getElementById("grammar-mastered-refresh").addEventListener("click", () => {
+    renderGrammarMasteredBox();
+  });
+  document.getElementById("grammar-mastered-search").addEventListener("input", () => {
+    if (state.boxes.grammarMasteredOpen) {
+      renderGrammarMasteredBox();
+    }
   });
   document.getElementById("grammar-quiz-close").addEventListener("click", () => {
     closeGrammarQuizModal();
@@ -3189,6 +3566,11 @@ function setupEventHandlers() {
     const btn = e.target.closest("button[data-grammar-option]");
     if (!btn) return;
     handleGrammarQuizOption(btn.dataset.grammarOption);
+  });
+  document.getElementById("grammar-mastered-list").addEventListener("click", (e) => {
+    const restoreBtn = e.target.closest("button[data-grammar-mastered-restore-id]");
+    if (!restoreBtn) return;
+    toggleGrammarMastery(restoreBtn.dataset.grammarMasteredRestoreId, false);
   });
 
   ["pron-section-filter", "pron-search"].forEach((id) => {

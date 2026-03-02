@@ -401,6 +401,13 @@ input[type="number"] {
   gap: 0.7rem;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
 .quiz-topline {
   display: flex;
   justify-content: space-between;
@@ -592,8 +599,15 @@ input[type="number"] {
   align-items: center;
 }
 
-.vocab-toolbar > label {
-  min-width: 220px;
+.toolbar-select {
+  display: flex;
+  align-items: center;
+  min-width: 250px;
+}
+
+.toolbar-select select {
+  width: 100%;
+  min-height: 2.22rem;
 }
 
 .vocab-audio-toggle {
@@ -682,6 +696,10 @@ input[type="number"] {
 }
 
 .mastered-box {
+  margin-top: 0.35rem;
+  border: 1px solid #e6dcc8;
+  border-radius: 0.92rem;
+  padding: 0.8rem;
   border-color: #e6dcc8;
   background: linear-gradient(160deg, #fffefb, #fff8ee);
 }
@@ -1098,6 +1116,15 @@ input[type="number"] {
 
   .quiz-input-wrap {
     flex-direction: column;
+  }
+
+  .action-row {
+    width: 100%;
+  }
+
+  .toolbar-select {
+    min-width: 0;
+    width: 100%;
   }
 
   .vocab-table {
