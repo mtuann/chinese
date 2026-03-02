@@ -408,6 +408,42 @@ input[type="number"] {
   gap: 0.6rem;
 }
 
+.quiz-head-stats {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+}
+
+.quiz-head-stats p {
+  margin: 0;
+}
+
+.quiz-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.session-mode-inline {
+  margin: 0;
+  min-width: 210px;
+  gap: 0.2rem;
+}
+
+.queue-badge {
+  margin: 0;
+  width: fit-content;
+  padding: 0.3rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid #f1dcb6;
+  background: #fff8eb;
+  color: #8a5a12;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .quiz-question-wrap {
   display: grid;
   gap: 0.65rem;
@@ -556,6 +592,10 @@ input[type="number"] {
   align-items: center;
 }
 
+.vocab-toolbar > label {
+  min-width: 220px;
+}
+
 .vocab-audio-toggle {
   border: 1px solid #ebdfcc;
   border-radius: 0.7rem;
@@ -639,6 +679,41 @@ input[type="number"] {
   padding: 0.28rem 0.56rem;
   font-size: 0.72rem;
   white-space: nowrap;
+}
+
+.mastered-box {
+  border-color: #e6dcc8;
+  background: linear-gradient(160deg, #fffefb, #fff8ee);
+}
+
+.mastered-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.mastered-item {
+  border: 1px solid #efe4d2;
+  border-radius: 0.72rem;
+  padding: 0.58rem;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.mastered-word {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.08rem;
+  line-height: 1.1;
+}
+
+.mastered-actions {
+  display: flex;
+  gap: 0.38rem;
+  flex-wrap: wrap;
 }
 
 .vocab-cell-pinyin {
@@ -914,6 +989,19 @@ input[type="number"] {
   transform: translateY(0);
 }
 
+.visitor-counter {
+  position: fixed;
+  right: 0.8rem;
+  bottom: 4.2rem;
+  z-index: 8;
+  max-width: 180px;
+  border: 1px solid #ecd9ba;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.15);
+  padding: 0.35rem;
+}
+
 .update-banner {
   position: fixed;
   left: 1rem;
@@ -1003,5 +1091,20 @@ input[type="number"] {
 
   .flash-modal {
     padding: 0.55rem;
+  }
+
+  .mastered-item {
+    flex-direction: column;
+  }
+
+  .session-mode-inline {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .visitor-counter {
+    position: static;
+    margin-top: 0.8rem;
+    max-width: 100%;
   }
 }

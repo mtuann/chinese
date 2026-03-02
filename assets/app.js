@@ -7,6 +7,7 @@ const DATA_FILES = {
 
 const LEVELS = [1, 2, 3, 4, 5, 6, 7];
 const STORAGE_KEY = "hsk_intensive_studio_v1";
+const SESSION_STORAGE_KEY = "hsk_intensive_studio_session_v1";
 const SRS_INTERVALS = [1, 3, 7, 14, 30, 45];
 const VOCAB_PAGE_SIZE = 36;
 
@@ -187,10 +188,24 @@ const state = {
     page: 1,
     totalPages: 1,
     filteredRows: [],
+    flashSourceRows: [],
     flashDeck: [],
-    flashIndex: 0,
+    flashQueue: [],
+    flashIndex: -1,
+    flashHistory: [],
+    flashMode: "continue",
     flashBack: false,
     flashOpen: false,
+  },
+  quizSession: {
+    sessionMode: "continue",
+    sessionKey: "",
+    queue: [],
+  },
+  grammarSession: {
+    sessionMode: "continue",
+    sessionKey: "",
+    queue: [],
   },
   timer: {
     remaining: 25 * 60,
@@ -227,6 +242,102 @@ function defaultProgress() {
   };
 }
 
+function defaultStudySession() {
+  return {
+    vocab: {
+      mode: "continue",
+      flashOpen: false,
+      flashBack: false,
+      historyIds: [],
+      historyIndex: -1,
+      queueIds: [],
+      filters: {},
+    },
+    quiz: {
+      mode: "continue",
+      sessionKey: "",
+      queueIds: [],
+      controls: {},
+      current: null,
+    },
+    grammar: {
+      mode: "continue",
+      sessionKey: "",
+      queueIds: [],
+      controls: {},
+      current: null,
+      open: false,
+    },
+  };
+}
+
+function asStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  value.forEach((item) => {
+    const text = (item ?? "").toString().trim();
+    if (text) out.push(text);
+  });
+  return out;
+}
+
+function mergeStudySession(raw) {
+  const base = defaultStudySession();
+  if (!raw || typeof raw !== "object") return base;
+
+  const vocab = raw.vocab || {};
+  const quiz = raw.quiz || {};
+  const grammar = raw.grammar || {};
+
+  base.vocab = {
+    ...base.vocab,
+    ...vocab,
+    mode: vocab.mode === "restart" ? "restart" : "continue",
+    flashOpen: Boolean(vocab.flashOpen),
+    flashBack: Boolean(vocab.flashBack),
+    historyIds: asStringArray(vocab.historyIds),
+    historyIndex: Number.isFinite(Number(vocab.historyIndex))
+      ? Number(vocab.historyIndex)
+      : -1,
+    queueIds: asStringArray(vocab.queueIds),
+    filters: vocab.filters && typeof vocab.filters === "object" ? vocab.filters : {},
+  };
+
+  base.quiz = {
+    ...base.quiz,
+    ...quiz,
+    mode: quiz.mode === "restart" ? "restart" : "continue",
+    sessionKey: (quiz.sessionKey || "").toString(),
+    queueIds: asStringArray(quiz.queueIds),
+    controls: quiz.controls && typeof quiz.controls === "object" ? quiz.controls : {},
+    current: quiz.current && typeof quiz.current === "object" ? quiz.current : null,
+  };
+
+  base.grammar = {
+    ...base.grammar,
+    ...grammar,
+    mode: grammar.mode === "restart" ? "restart" : "continue",
+    sessionKey: (grammar.sessionKey || "").toString(),
+    queueIds: asStringArray(grammar.queueIds),
+    controls:
+      grammar.controls && typeof grammar.controls === "object" ? grammar.controls : {},
+    current: grammar.current && typeof grammar.current === "object" ? grammar.current : null,
+    open: Boolean(grammar.open),
+  };
+
+  return base;
+}
+
+function loadStudySession() {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return defaultStudySession();
+    return mergeStudySession(JSON.parse(raw));
+  } catch (_err) {
+    return defaultStudySession();
+  }
+}
+
 function mergeWithDefaults(raw) {
   const merged = defaultProgress();
   if (!raw || typeof raw !== "object") return merged;
@@ -260,6 +371,7 @@ function loadProgress() {
 
 function saveProgress() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.progress));
+  saveStudySession();
 }
 
 function todayKey() {
@@ -401,6 +513,98 @@ function speakVocabWord(word) {
 
 function findWordById(wordId) {
   return allWords().find((w) => w.id === wordId) || null;
+}
+
+function findRadicalById(radicalId) {
+  return state.data.radicals.find((r) => r.id === radicalId) || null;
+}
+
+function findGrammarById(grammarId) {
+  return state.data.grammar.find((g) => g.id === grammarId) || null;
+}
+
+function readValue(id, fallback = "") {
+  const el = document.getElementById(id);
+  if (!el) return fallback;
+  return el.value;
+}
+
+function readChecked(id, fallback = false) {
+  const el = document.getElementById(id);
+  if (!el) return fallback;
+  return Boolean(el.checked);
+}
+
+function setInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  el.value = value ?? "";
+  return true;
+}
+
+function setCheckboxValue(id, checked) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  el.checked = Boolean(checked);
+  return true;
+}
+
+function setSelectValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value === undefined || value === null) return false;
+  const target = String(value);
+  const exists = [...el.options].some((opt) => opt.value === target);
+  if (!exists) return false;
+  el.value = target;
+  return true;
+}
+
+function uniqueStringIds(ids) {
+  const out = [];
+  const seen = new Set();
+  asStringArray(ids).forEach((id) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push(id);
+  });
+  return out;
+}
+
+function sanitizeQueueIds(queueIds, poolIds) {
+  const allowed = new Set(uniqueStringIds(poolIds));
+  return uniqueStringIds(queueIds).filter((id) => allowed.has(id));
+}
+
+function refillQueueIds(poolIds, excludeId = null) {
+  const exclude = excludeId === null || excludeId === undefined ? null : String(excludeId);
+  const ids = uniqueStringIds(poolIds).filter((id) => id !== exclude);
+  return shuffle(ids);
+}
+
+function takeNextQueueId(queueIds, poolIds, excludeId = null) {
+  const pool = uniqueStringIds(poolIds);
+  if (!pool.length) {
+    return { id: null, queue: [] };
+  }
+
+  const exclude =
+    excludeId !== null && excludeId !== undefined && pool.length > 1 ? String(excludeId) : null;
+  let queue = sanitizeQueueIds(queueIds, pool);
+  let nextId = null;
+
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (exclude && candidate === exclude) continue;
+    nextId = candidate;
+    break;
+  }
+
+  if (!nextId) {
+    queue = refillQueueIds(pool, exclude);
+    nextId = queue.shift() || null;
+  }
+
+  return { id: nextId, queue };
 }
 
 function syncModalBodyLock() {
@@ -1010,35 +1214,147 @@ function applyVocabColumnFilters(rows, filters) {
   });
 }
 
-function syncFlashDeckWithVocabulary(rows) {
-  if (!state.vocab.flashOpen) {
+function isWordMastered(wordId) {
+  return Boolean(state.progress.words[wordId] && state.progress.words[wordId].mastered);
+}
+
+function getSelectedVocabFlashMode() {
+  const select = document.getElementById("vocab-flash-mode");
+  return select ? select.value : "continue";
+}
+
+function getFlashPoolByMode(mode) {
+  const sourceRows = state.vocab.flashSourceRows.length
+    ? state.vocab.flashSourceRows
+    : state.vocab.filteredRows;
+  if (mode === "continue") {
+    return sourceRows.filter((w) => !isWordMastered(w.id));
+  }
+  return [...sourceRows];
+}
+
+function syncFlashDeckWithFilters(preserveHistory = true) {
+  state.vocab.flashDeck = getFlashPoolByMode(state.vocab.flashMode);
+  const deckIds = state.vocab.flashDeck.map((w) => w.id);
+
+  if (!preserveHistory) {
+    state.vocab.flashHistory = [];
+    state.vocab.flashQueue = [];
+    state.vocab.flashIndex = -1;
+    state.vocab.flashBack = false;
     return;
   }
 
-  const byId = new Map(rows.map((w) => [w.id, w]));
-  const syncedDeck = state.vocab.flashDeck
-    .map((w) => byId.get(w.id))
-    .filter(Boolean);
-
-  if (syncedDeck.length) {
-    state.vocab.flashDeck = syncedDeck;
-  } else {
-    state.vocab.flashDeck = [...rows];
-    state.vocab.flashIndex = 0;
+  const allowed = new Set(deckIds);
+  state.vocab.flashHistory = state.vocab.flashHistory.filter((id) => allowed.has(id));
+  state.vocab.flashQueue = sanitizeQueueIds(state.vocab.flashQueue, deckIds);
+  if (!state.vocab.flashHistory.length) {
+    state.vocab.flashIndex = -1;
     state.vocab.flashBack = false;
+    return;
   }
-
-  if (state.vocab.flashDeck.length === 0) {
-    state.vocab.flashIndex = 0;
-    state.vocab.flashBack = false;
-  } else {
-    state.vocab.flashIndex = Math.min(state.vocab.flashIndex, state.vocab.flashDeck.length - 1);
-  }
+  state.vocab.flashIndex = Math.min(
+    Math.max(0, state.vocab.flashIndex),
+    state.vocab.flashHistory.length - 1
+  );
 }
 
 function getCurrentFlashWord() {
-  if (!state.vocab.flashDeck.length) return null;
-  return state.vocab.flashDeck[state.vocab.flashIndex] || null;
+  const currentId = state.vocab.flashHistory[state.vocab.flashIndex];
+  if (!currentId) return null;
+  return findWordById(currentId);
+}
+
+function pickFlashWordById(wordId) {
+  if (!wordId) return null;
+  return state.vocab.flashDeck.find((w) => w.id === wordId) || findWordById(wordId);
+}
+
+function takeNextFlashWordFromQueue(excludeCurrent = true) {
+  const deckIds = state.vocab.flashDeck.map((w) => w.id);
+  if (!deckIds.length) return null;
+  const current = getCurrentFlashWord();
+  const next = takeNextQueueId(
+    state.vocab.flashQueue,
+    deckIds,
+    excludeCurrent && current ? current.id : null
+  );
+  state.vocab.flashQueue = next.queue;
+  return pickFlashWordById(next.id);
+}
+
+function pushFlashHistory(word) {
+  if (!word) return;
+  state.vocab.flashHistory = state.vocab.flashHistory.slice(0, state.vocab.flashIndex + 1);
+  state.vocab.flashHistory.push(word.id);
+  state.vocab.flashIndex = state.vocab.flashHistory.length - 1;
+}
+
+function ensureFlashHasCurrentWord() {
+  if (getCurrentFlashWord()) return true;
+  const picked = takeNextFlashWordFromQueue(false);
+  if (!picked) return false;
+  pushFlashHistory(picked);
+  return true;
+}
+
+function getMasteredRowsForCurrentScope() {
+  const level = document.getElementById("vocab-level-filter").value;
+  const mode = document.getElementById("vocab-level-mode").value;
+  const radical = document.getElementById("vocab-radical-filter").value;
+  const query = document.getElementById("vocab-mastered-search").value.trim().toLowerCase();
+
+  let rows = getWordsByLevelAndMode(level, mode);
+  if (radical !== "all") {
+    rows = rows.filter((w) => (w.radical_ids || []).includes(radical));
+  }
+  rows = rows.filter((w) => isWordMastered(w.id));
+
+  if (query) {
+    rows = rows.filter((w) => {
+      const hay = [w.word, w.pinyin, w.meaning, ...(w.radical_ids || [])].join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (a.level !== b.level) return a.level - b.level;
+    if (a.frequency !== b.frequency) return a.frequency - b.frequency;
+    return a.word.localeCompare(b.word, "zh");
+  });
+  return rows;
+}
+
+function renderVocabMasteredBox() {
+  const rows = getMasteredRowsForCurrentScope();
+  const info = document.getElementById("vocab-mastered-info");
+  const list = document.getElementById("vocab-mastered-list");
+  info.textContent = `${rows.length} mastered words in current scope.`;
+
+  if (!rows.length) {
+    list.innerHTML = '<p class="muted">No mastered words for current filters.</p>';
+    return;
+  }
+
+  list.innerHTML = rows
+    .slice(0, 240)
+    .map((w) => {
+      const radicals = (w.radical_ids || []).map((rid) => getRadicalIdeographById(rid)).join(" ");
+      return `
+        <div class="mastered-item">
+          <div>
+            <div class="mastered-word">${escapeHtml(w.word || "-")}</div>
+            <div class="muted">${escapeHtml(w.pinyin || "-")} · ${escapeHtml(w.meaning || "-")}</div>
+            <div class="muted">${escapeHtml(levelLabel(w.level || 0))} · radicals: ${escapeHtml(radicals || "-")}</div>
+          </div>
+          <div class="mastered-actions">
+            <button class="btn btn-secondary btn-small" data-mastered-audio-id="${w.id}" ${supportsTts() ? "" : "disabled"}>Audio</button>
+            <button class="btn btn-secondary btn-small" data-mastered-restore-id="${w.id}">Restore</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function isVocabAutoSpeakEnabled() {
@@ -1058,17 +1374,38 @@ function autoSpeakFlashcard() {
 }
 
 function openVocabFlashcards() {
-  if (!state.vocab.filteredRows.length) {
-    showToast("No words to build flashcards for this filter.");
+  const selectedMode = getSelectedVocabFlashMode();
+  const keepSession = state.vocab.flashMode === selectedMode && selectedMode === "continue";
+  state.vocab.flashMode = selectedMode;
+  syncFlashDeckWithFilters(keepSession);
+
+  if (!state.vocab.flashDeck.length) {
+    showToast(
+      selectedMode === "continue"
+        ? "All words in this filter are mastered. Switch to restart mode to review all."
+        : "No words to build flashcards for this filter."
+    );
+    state.vocab.flashOpen = false;
+    renderVocabFlashcard();
+    saveStudySession();
     return;
   }
-  state.vocab.flashDeck = [...state.vocab.filteredRows];
-  state.vocab.flashIndex = 0;
+
+  if (!keepSession || selectedMode === "restart" || !state.vocab.flashHistory.length) {
+    state.vocab.flashHistory = [];
+    state.vocab.flashQueue = [];
+    state.vocab.flashIndex = -1;
+    pushFlashHistory(takeNextFlashWordFromQueue(false));
+  } else {
+    ensureFlashHasCurrentWord();
+  }
+
   state.vocab.flashBack = false;
   state.vocab.flashOpen = true;
   renderVocabFlashcard();
   document.getElementById("vocab-flash-card").focus();
   autoSpeakFlashcard();
+  saveStudySession();
 }
 
 function closeVocabFlashcards() {
@@ -1077,30 +1414,48 @@ function closeVocabFlashcards() {
     window.speechSynthesis.cancel();
   }
   renderVocabFlashcard();
+  saveStudySession();
 }
 
 function flipVocabFlashcard() {
   if (!state.vocab.flashOpen) return;
   state.vocab.flashBack = !state.vocab.flashBack;
   renderVocabFlashcard();
+  saveStudySession();
 }
 
 function moveVocabFlashcard(step) {
   if (!state.vocab.flashOpen || !state.vocab.flashDeck.length) return;
-  const maxIndex = state.vocab.flashDeck.length - 1;
-  state.vocab.flashIndex = Math.min(maxIndex, Math.max(0, state.vocab.flashIndex + step));
+  if (step < 0) {
+    if (state.vocab.flashIndex <= 0) return;
+    state.vocab.flashIndex -= 1;
+    state.vocab.flashBack = false;
+    renderVocabFlashcard();
+    autoSpeakFlashcard();
+    saveStudySession();
+    return;
+  }
+
+  if (state.vocab.flashIndex < state.vocab.flashHistory.length - 1) {
+    state.vocab.flashIndex += 1;
+    state.vocab.flashBack = false;
+    renderVocabFlashcard();
+    autoSpeakFlashcard();
+    saveStudySession();
+    return;
+  }
+
+  const picked = takeNextFlashWordFromQueue(true);
+  if (!picked) return;
+  pushFlashHistory(picked);
   state.vocab.flashBack = false;
   renderVocabFlashcard();
   autoSpeakFlashcard();
+  saveStudySession();
 }
 
 function shuffleVocabFlashDeck() {
-  if (!state.vocab.flashDeck.length) return;
-  state.vocab.flashDeck = shuffle(state.vocab.flashDeck);
-  state.vocab.flashIndex = 0;
-  state.vocab.flashBack = false;
-  renderVocabFlashcard();
-  autoSpeakFlashcard();
+  moveVocabFlashcard(1);
 }
 
 function toggleCurrentFlashWordMastery() {
@@ -1121,10 +1476,11 @@ function renderVocabFlashcard() {
   const replayBtn = document.getElementById("vocab-flash-replay");
   const showPinyin = document.getElementById("vocab-show-pinyin").checked;
 
-  startBtn.textContent = state.vocab.flashOpen ? "Restart Flashcards" : "Start Flashcards";
+  startBtn.textContent = "Open Flashcards";
   modal.classList.toggle("hidden", !state.vocab.flashOpen);
   syncModalBodyLock();
   if (!state.vocab.flashOpen) {
+    saveStudySession();
     return;
   }
 
@@ -1138,6 +1494,7 @@ function renderVocabFlashcard() {
     replayBtn.disabled = true;
     document.getElementById("vocab-flash-prev").disabled = true;
     document.getElementById("vocab-flash-next").disabled = true;
+    saveStudySession();
     return;
   }
 
@@ -1146,8 +1503,10 @@ function renderVocabFlashcard() {
     .join(" ");
   const rec = state.progress.words[current.id];
   const mastered = Boolean(rec && rec.mastered);
+  const modeLabel =
+    state.vocab.flashMode === "continue" ? "Continue (hide mastered)" : "Restart (show all)";
 
-  meta.textContent = `Card ${state.vocab.flashIndex + 1} / ${state.vocab.flashDeck.length}`;
+  meta.textContent = `Mode: ${modeLabel} · Seen ${state.vocab.flashIndex + 1} · Pool ${state.vocab.flashDeck.length} · Queue ${state.vocab.flashQueue.length}`;
   front.textContent = current.word || "-";
   back.innerHTML = `
     <div class="flash-back-word">${escapeHtml(current.word || "-")}</div>
@@ -1162,20 +1521,24 @@ function renderVocabFlashcard() {
   replayBtn.disabled = !supportsTts();
   masteredBtn.textContent = mastered ? "Unmark mastered" : "Mark mastered";
   document.getElementById("vocab-flash-prev").disabled = state.vocab.flashIndex <= 0;
-  document.getElementById("vocab-flash-next").disabled =
-    state.vocab.flashIndex >= state.vocab.flashDeck.length - 1;
+  document.getElementById("vocab-flash-next").disabled = state.vocab.flashDeck.length <= 1;
+  saveStudySession();
 }
 
 function openGrammarQuizModal() {
   state.grammarQuizOpen = true;
   document.getElementById("grammar-quiz-modal").classList.remove("hidden");
   syncModalBodyLock();
+  updateGrammarQueueBadge();
+  saveStudySession();
 }
 
 function closeGrammarQuizModal() {
   state.grammarQuizOpen = false;
   document.getElementById("grammar-quiz-modal").classList.add("hidden");
   syncModalBodyLock();
+  updateGrammarQueueBadge();
+  saveStudySession();
 }
 
 function renderVocabulary(resetPage = false) {
@@ -1199,11 +1562,12 @@ function renderVocabulary(resetPage = false) {
     });
   }
 
+  rows = applyVocabColumnFilters(rows, columnFilters);
+  state.vocab.flashSourceRows = [...rows];
+
   if (onlyUnlearned) {
     rows = rows.filter((w) => !(state.progress.words[w.id] && state.progress.words[w.id].mastered));
   }
-
-  rows = applyVocabColumnFilters(rows, columnFilters);
 
   rows = rows.sort((a, b) => {
     const aLevel = Number(a.level || 0);
@@ -1219,7 +1583,14 @@ function renderVocabulary(resetPage = false) {
     return aWord.localeCompare(bWord, "zh");
   });
   state.vocab.filteredRows = rows;
-  syncFlashDeckWithVocabulary(rows);
+  syncFlashDeckWithFilters(true);
+  if (state.vocab.flashOpen && state.vocab.flashDeck.length && !getCurrentFlashWord()) {
+    pushFlashHistory(takeNextFlashWordFromQueue(false));
+  }
+  if (state.vocab.flashOpen && !state.vocab.flashDeck.length) {
+    state.vocab.flashOpen = false;
+    state.vocab.flashBack = false;
+  }
 
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / VOCAB_PAGE_SIZE));
@@ -1239,7 +1610,9 @@ function renderVocabulary(resetPage = false) {
     ? `${total} words found. Showing ${from + 1}-${Math.min(to, total)}.`
     : "0 words found.";
 
-  document.getElementById("vocab-flash-start").disabled = total === 0;
+  const selectedFlashMode = getSelectedVocabFlashMode();
+  const availableForMode = getFlashPoolByMode(selectedFlashMode).length;
+  document.getElementById("vocab-flash-start").disabled = availableForMode === 0;
 
   const list = document.getElementById("vocab-list");
   if (!pageRows.length) {
@@ -1288,7 +1661,9 @@ function renderVocabulary(resetPage = false) {
   document.getElementById("vocab-page-info").textContent = `Page ${state.vocab.page} / ${totalPages}`;
   document.getElementById("vocab-prev-page").disabled = state.vocab.page <= 1;
   document.getElementById("vocab-next-page").disabled = state.vocab.page >= totalPages;
+  renderVocabMasteredBox();
   renderVocabFlashcard();
+  saveStudySession();
 }
 
 function toggleVocabMastery(wordId, checked) {
@@ -1418,6 +1793,21 @@ function refreshQuizRadicalFilter() {
 function updateQuizScoreline() {
   const el = document.getElementById("quiz-scoreline");
   el.textContent = `Correct ${state.progress.quizStats.correct} | Wrong ${state.progress.quizStats.wrong}`;
+  updateQuizQueueBadge();
+}
+
+function updateQuizQueueBadge() {
+  const el = document.getElementById("quiz-queue-info");
+  if (!el) return;
+
+  const mode = readValue("quiz-mode", "radical-mc");
+  const level = readValue("quiz-level", "all");
+  const radicalFilter = readValue("quiz-radical-filter", "all");
+  const poolIds = getQuizPromptIds(mode, level, radicalFilter);
+  const remain = sanitizeQueueIds(state.quizSession.queue, poolIds).length;
+  const modeLabel =
+    getSelectedQuizSessionMode() === "continue" ? "continue mode" : "restart mode";
+  el.textContent = `Queue: ${remain}/${poolIds.length} remaining · ${modeLabel}`;
 }
 
 function setFeedbackState(el, correct, text) {
@@ -1441,11 +1831,72 @@ function markChoiceButtons(containerSelector, optionAttr, correctValue, selected
   });
 }
 
+function getSelectedQuizSessionMode() {
+  const mode = readValue("quiz-session-mode", "continue");
+  return mode === "restart" ? "restart" : "continue";
+}
+
+function getQuizSessionKey(mode, level, radicalFilter) {
+  const radicalPart = mode === "word-dictation" ? radicalFilter : "all";
+  return `${mode}|${level}|${radicalPart}`;
+}
+
+function getQuizPromptIds(mode, level, radicalFilter) {
+  if (mode === "word-dictation") {
+    return getWordsForFilters(level, radicalFilter).map((w) => w.id);
+  }
+  return getRadicalPoolForLevel(level).map((r) => r.id);
+}
+
+function buildQuizQuestionFromPromptId(mode, level, radicalFilter, promptId, optionIds = null) {
+  if (mode === "radical-mc") {
+    const pool = getRadicalPoolForLevel(level);
+    if (pool.length < 4) return null;
+    const radical = pool.find((x) => x.id === promptId) || findRadicalById(promptId);
+    if (!radical) return null;
+
+    let options = [];
+    if (Array.isArray(optionIds) && optionIds.length) {
+      const allowed = new Set(pool.map((r) => r.id));
+      options = uniqueStringIds(optionIds)
+        .map((id) => findRadicalById(id))
+        .filter((r) => r && allowed.has(r.id));
+      if (!options.some((r) => r.id === radical.id)) {
+        options.unshift(radical);
+      }
+      options = options.slice(0, 4);
+    }
+    if (options.length < 4) {
+      const distractors = shuffle(pool.filter((x) => x.id !== radical.id)).slice(0, 3);
+      options = shuffle([radical, ...distractors]);
+    } else {
+      options = shuffle(options);
+    }
+
+    return { mode, promptId: radical.id, radical, options, answered: false };
+  }
+
+  if (mode === "radical-dictation") {
+    const pool = getRadicalPoolForLevel(level);
+    const allowed = new Set(pool.map((r) => r.id));
+    const radical = findRadicalById(promptId);
+    if (!radical || !allowed.has(radical.id)) return null;
+    return { mode, promptId: radical.id, radical, answered: false };
+  }
+
+  const pool = getWordsForFilters(level, radicalFilter);
+  const allowed = new Set(pool.map((w) => w.id));
+  const word = findWordById(promptId);
+  if (!word || !allowed.has(word.id)) return null;
+  return { mode: "word-dictation", promptId: word.id, word, answered: false };
+}
+
 function renderQuizQuestion() {
   const wrap = document.getElementById("quiz-question-wrap");
   const q = state.currentQuiz;
   if (!q) {
     wrap.classList.add("hidden");
+    saveStudySession();
     return;
   }
 
@@ -1493,42 +1944,77 @@ function renderQuizQuestion() {
     answerInput.value = "";
     answerInput.focus();
   }
+
+  saveStudySession();
+  updateQuizQueueBadge();
 }
 
-function newQuizQuestion() {
-  const mode = document.getElementById("quiz-mode").value;
-  const level = document.getElementById("quiz-level").value;
-  const radicalFilter = document.getElementById("quiz-radical-filter").value;
+function startQuizSession() {
+  const mode = readValue("quiz-mode", "radical-mc");
+  const level = readValue("quiz-level", "all");
+  const radicalFilter = readValue("quiz-radical-filter", "all");
+  const sessionMode = getSelectedQuizSessionMode();
+  const key = getQuizSessionKey(mode, level, radicalFilter);
 
-  if (mode === "radical-mc") {
-    const pool = getRadicalPoolForLevel(level);
-    if (pool.length < 4) {
-      showToast("Not enough radicals in this filter.");
-      return;
-    }
-    const radical = pickRandom(pool);
-    const distractors = shuffle(pool.filter((x) => x.id !== radical.id)).slice(0, 3);
-    const options = shuffle([radical, ...distractors]);
-    state.currentQuiz = { mode, radical, options, answered: false };
-  } else if (mode === "radical-dictation") {
-    const pool = getRadicalPoolForLevel(level);
-    if (!pool.length) {
-      showToast("No radicals available for this filter.");
-      return;
-    }
-    const radical = pickRandom(pool);
-    state.currentQuiz = { mode, radical, answered: false };
-  } else {
-    const pool = getWordsForFilters(level, radicalFilter);
-    if (!pool.length) {
-      showToast("No words for this level/radical filter.");
-      return;
-    }
-    const word = pickRandom(pool);
-    state.currentQuiz = { mode, word, answered: false };
+  state.quizSession.sessionMode = sessionMode;
+  const canContinue =
+    sessionMode === "continue" &&
+    state.quizSession.sessionKey === key &&
+    state.currentQuiz &&
+    !state.currentQuiz.answered;
+
+  if (canContinue) {
+    renderQuizQuestion();
+    return;
   }
 
+  newQuizQuestion(sessionMode === "restart");
+}
+
+function newQuizQuestion(forceRestart = false) {
+  const mode = readValue("quiz-mode", "radical-mc");
+  const level = readValue("quiz-level", "all");
+  const radicalFilter = readValue("quiz-radical-filter", "all");
+  const sessionMode = getSelectedQuizSessionMode();
+  const key = getQuizSessionKey(mode, level, radicalFilter);
+  const promptIds = getQuizPromptIds(mode, level, radicalFilter);
+
+  if (mode === "radical-mc" && promptIds.length < 4) {
+    showToast("Not enough radicals in this filter.");
+    return;
+  }
+  if (!promptIds.length) {
+    showToast(
+      mode === "word-dictation"
+        ? "No words for this level/radical filter."
+        : "No radicals available for this filter."
+    );
+    return;
+  }
+
+  const restart = forceRestart || state.quizSession.sessionKey !== key;
+  if (restart) {
+    state.quizSession.queue = [];
+    state.currentQuiz = null;
+  }
+
+  state.quizSession.sessionMode = sessionMode;
+  state.quizSession.sessionKey = key;
+  const next = takeNextQueueId(state.quizSession.queue, promptIds, state.currentQuiz?.promptId || null);
+  state.quizSession.queue = next.queue;
+
+  const nextQuestion = buildQuizQuestionFromPromptId(mode, level, radicalFilter, next.id);
+  if (!nextQuestion) {
+    showToast("Unable to build this question. Trying the next one.");
+    state.currentQuiz = null;
+    saveStudySession();
+    return;
+  }
+
+  state.currentQuiz = nextQuestion;
   renderQuizQuestion();
+  updateQuizQueueBadge();
+  saveStudySession();
 }
 
 function registerQuizResult(correct, payload) {
@@ -1576,6 +2062,7 @@ function handleOptionAnswer(optionId) {
 
   nextBtn.classList.remove("hidden");
   renderRadicals();
+  saveStudySession();
 }
 
 function handleTextAnswer() {
@@ -1646,6 +2133,7 @@ function handleTextAnswer() {
 
   nextBtn.classList.remove("hidden");
   renderRadicals();
+  saveStudySession();
 }
 
 function renderGrammar() {
@@ -1732,6 +2220,9 @@ function renderGrammar() {
     `;
     list.appendChild(card);
   });
+
+  updateGrammarQueueBadge();
+  saveStudySession();
 }
 
 function toggleGrammarMastery(grammarId, checked) {
@@ -1749,52 +2240,174 @@ function toggleGrammarMastery(grammarId, checked) {
   renderIntensive();
 }
 
-function newGrammarQuizQuestion() {
-  const level = document.getElementById("grammar-level-filter").value;
-  const mode = document.getElementById("grammar-level-mode").value;
+function getSelectedGrammarQuizMode() {
+  const mode = readValue("grammar-quiz-mode", "continue");
+  return mode === "restart" ? "restart" : "continue";
+}
+
+function updateGrammarQueueBadge() {
+  const cta = document.getElementById("grammar-queue-info");
+  const modal = document.getElementById("grammar-quiz-queue-info");
+  if (!cta && !modal) return;
+
+  const level = readValue("grammar-level-filter", "all");
+  const mode = readValue("grammar-level-mode", "exact");
+  const poolIds = getGrammarQuizPromptIds(level, mode);
+  const remain = sanitizeQueueIds(state.grammarSession.queue, poolIds).length;
+  const modeLabel =
+    getSelectedGrammarQuizMode() === "continue" ? "continue mode" : "restart mode";
+  const text = `Queue: ${remain}/${poolIds.length} remaining · ${modeLabel}`;
+
+  if (cta) cta.textContent = text;
+  if (modal) modal.textContent = text;
+}
+
+function getGrammarQuizPool(level, mode) {
   let pool = [...state.data.grammar];
   if (level !== "all") {
     const lv = Number(level);
     pool = pool.filter((g) => (mode === "upto" ? g.level <= lv : g.level === lv));
   }
-  if (pool.length < 4) {
-    showToast("Not enough grammar points for quiz.");
-    return;
+  return pool;
+}
+
+function getGrammarQuizPromptIds(level, mode) {
+  return getGrammarQuizPool(level, mode).map((g) => g.id);
+}
+
+function getGrammarQuizSessionKey(level, mode) {
+  return `${level}|${mode}`;
+}
+
+function buildGrammarQuizQuestionFromPromptId(level, mode, promptId, optionIds = null) {
+  const pool = getGrammarQuizPool(level, mode);
+  if (pool.length < 4) return null;
+  const target = pool.find((x) => x.id === promptId) || findGrammarById(promptId);
+  if (!target) return null;
+
+  let options = [];
+  if (Array.isArray(optionIds) && optionIds.length) {
+    const allowed = new Set(pool.map((p) => p.id));
+    options = uniqueStringIds(optionIds)
+      .map((id) => findGrammarById(id))
+      .filter((g) => g && allowed.has(g.id));
+    if (!options.some((g) => g.id === target.id)) {
+      options.unshift(target);
+    }
+    options = options.slice(0, 4);
   }
 
-  const target = pickRandom(pool);
-  const options = shuffle([
-    target,
-    ...shuffle(pool.filter((x) => x.id !== target.id)).slice(0, 3),
-  ]);
+  if (options.length < 4) {
+    options = shuffle([
+      target,
+      ...shuffle(pool.filter((x) => x.id !== target.id)).slice(0, 3),
+    ]);
+  } else {
+    options = shuffle(options);
+  }
 
-  state.currentGrammarQuiz = { target, options, answered: false };
-  openGrammarQuizModal();
+  return { promptId: target.id, target, options, answered: false };
+}
 
+function renderGrammarQuizQuestion() {
   const wrap = document.getElementById("grammar-quiz-wrap");
   const qEl = document.getElementById("grammar-quiz-question");
   const optionsEl = document.getElementById("grammar-quiz-options");
   const feedback = document.getElementById("grammar-quiz-feedback");
   const nextBtn = document.getElementById("grammar-quiz-next");
+  const q = state.currentGrammarQuiz;
+
+  if (!q) {
+    wrap.classList.add("hidden");
+    saveStudySession();
+    return;
+  }
 
   wrap.classList.remove("hidden");
   feedback.textContent = "";
   feedback.className = "quiz-feedback";
   nextBtn.classList.add("hidden");
 
-  const example = (target.examples || [])[0] || "";
-  const examplePinyin = (target.examples_pinyin || [])[0] || "";
+  const example = (q.target.examples || [])[0] || "";
+  const examplePinyin = (q.target.examples_pinyin || [])[0] || "";
   qEl.innerHTML = `Which grammar point best matches this sentence?<br/><strong>${example}</strong>${
     examplePinyin ? `<br/><span class="pinyin-line">${examplePinyin}</span>` : ""
   }`;
   optionsEl.innerHTML = "";
-  options.forEach((opt) => {
+  q.options.forEach((opt) => {
     const btn = document.createElement("button");
     btn.className = "btn btn-secondary";
     btn.dataset.grammarOption = opt.id;
     btn.textContent = `${opt.code} ${opt.title}`;
     optionsEl.appendChild(btn);
   });
+
+  updateGrammarQueueBadge();
+  saveStudySession();
+}
+
+function startGrammarQuizSession() {
+  const level = readValue("grammar-level-filter", "all");
+  const mode = readValue("grammar-level-mode", "exact");
+  const sessionMode = getSelectedGrammarQuizMode();
+  const key = getGrammarQuizSessionKey(level, mode);
+
+  state.grammarSession.sessionMode = sessionMode;
+  const canContinue =
+    sessionMode === "continue" &&
+    state.grammarSession.sessionKey === key &&
+    state.currentGrammarQuiz &&
+    !state.currentGrammarQuiz.answered;
+
+  if (canContinue) {
+    openGrammarQuizModal();
+    renderGrammarQuizQuestion();
+    updateGrammarQueueBadge();
+    return;
+  }
+
+  newGrammarQuizQuestion(sessionMode === "restart");
+}
+
+function newGrammarQuizQuestion(forceRestart = false) {
+  const level = readValue("grammar-level-filter", "all");
+  const mode = readValue("grammar-level-mode", "exact");
+  const sessionMode = getSelectedGrammarQuizMode();
+  const key = getGrammarQuizSessionKey(level, mode);
+  const promptIds = getGrammarQuizPromptIds(level, mode);
+  if (promptIds.length < 4) {
+    showToast("Not enough grammar points for quiz.");
+    return;
+  }
+
+  const restart = forceRestart || state.grammarSession.sessionKey !== key;
+  if (restart) {
+    state.grammarSession.queue = [];
+    state.currentGrammarQuiz = null;
+  }
+
+  state.grammarSession.sessionMode = sessionMode;
+  state.grammarSession.sessionKey = key;
+  const next = takeNextQueueId(
+    state.grammarSession.queue,
+    promptIds,
+    state.currentGrammarQuiz?.promptId || null
+  );
+  state.grammarSession.queue = next.queue;
+
+  const nextQuestion = buildGrammarQuizQuestionFromPromptId(level, mode, next.id);
+  if (!nextQuestion) {
+    showToast("Unable to build grammar question. Please try again.");
+    state.currentGrammarQuiz = null;
+    saveStudySession();
+    return;
+  }
+
+  state.currentGrammarQuiz = nextQuestion;
+  openGrammarQuizModal();
+  renderGrammarQuizQuestion();
+  updateGrammarQueueBadge();
+  saveStudySession();
 }
 
 function handleGrammarQuizOption(optionId) {
@@ -1829,6 +2442,7 @@ function handleGrammarQuizOption(optionId) {
   renderDashboard();
   renderIntensive();
   nextBtn.classList.remove("hidden");
+  saveStudySession();
 }
 
 function renderIntensive() {
@@ -2083,6 +2697,221 @@ function renderAll() {
   safeRender("quiz-radical-filter", refreshQuizRadicalFilter);
 }
 
+function serializeCurrentQuiz() {
+  const q = state.currentQuiz;
+  if (!q) return null;
+  if (q.mode === "radical-mc") {
+    return {
+      mode: q.mode,
+      promptId: q.radical?.id || q.promptId || "",
+      optionIds: (q.options || []).map((opt) => opt.id),
+    };
+  }
+  if (q.mode === "radical-dictation") {
+    return {
+      mode: q.mode,
+      promptId: q.radical?.id || q.promptId || "",
+    };
+  }
+  if (q.mode === "word-dictation") {
+    return {
+      mode: q.mode,
+      promptId: q.word?.id || q.promptId || "",
+    };
+  }
+  return null;
+}
+
+function serializeCurrentGrammarQuiz() {
+  const q = state.currentGrammarQuiz;
+  if (!q) return null;
+  return {
+    promptId: q.target?.id || q.promptId || "",
+    optionIds: (q.options || []).map((opt) => opt.id),
+  };
+}
+
+function captureVocabSessionFilters() {
+  return {
+    level: readValue("vocab-level-filter", "all"),
+    levelMode: readValue("vocab-level-mode", "exact"),
+    radical: readValue("vocab-radical-filter", "all"),
+    search: readValue("vocab-search", ""),
+    showPinyin: readChecked("vocab-show-pinyin", true),
+    onlyUnlearned: readChecked("vocab-only-unlearned", false),
+    colWord: readValue("vocab-col-word", ""),
+    colPinyin: readValue("vocab-col-pinyin", ""),
+    colMeaning: readValue("vocab-col-meaning", ""),
+    colLevel: readValue("vocab-col-level", "all"),
+    colFreqMin: readValue("vocab-col-freq-min", ""),
+    colFreqMax: readValue("vocab-col-freq-max", ""),
+    colRadical: readValue("vocab-col-radical", ""),
+    colMastered: readValue("vocab-col-mastered", "all"),
+    masteredSearch: readValue("vocab-mastered-search", ""),
+  };
+}
+
+function captureQuizSessionControls() {
+  return {
+    mode: readValue("quiz-mode", "radical-mc"),
+    level: readValue("quiz-level", "all"),
+    radicalFilter: readValue("quiz-radical-filter", "all"),
+  };
+}
+
+function captureGrammarSessionControls() {
+  return {
+    level: readValue("grammar-level-filter", "all"),
+    mode: readValue("grammar-level-mode", "exact"),
+    search: readValue("grammar-search", ""),
+    onlyUnlearned: readChecked("grammar-only-unlearned", false),
+    showPinyin: readChecked("grammar-show-pinyin", true),
+  };
+}
+
+function saveStudySession() {
+  try {
+    const session = defaultStudySession();
+    session.vocab = {
+      mode: state.vocab.flashMode === "restart" ? "restart" : "continue",
+      flashOpen: Boolean(state.vocab.flashOpen),
+      flashBack: Boolean(state.vocab.flashBack),
+      historyIds: asStringArray(state.vocab.flashHistory),
+      historyIndex: Number.isFinite(Number(state.vocab.flashIndex))
+        ? Number(state.vocab.flashIndex)
+        : -1,
+      queueIds: asStringArray(state.vocab.flashQueue),
+      filters: captureVocabSessionFilters(),
+    };
+
+    session.quiz = {
+      mode: state.quizSession.sessionMode === "restart" ? "restart" : "continue",
+      sessionKey: state.quizSession.sessionKey || "",
+      queueIds: asStringArray(state.quizSession.queue),
+      controls: captureQuizSessionControls(),
+      current: serializeCurrentQuiz(),
+    };
+
+    session.grammar = {
+      mode: state.grammarSession.sessionMode === "restart" ? "restart" : "continue",
+      sessionKey: state.grammarSession.sessionKey || "",
+      queueIds: asStringArray(state.grammarSession.queue),
+      controls: captureGrammarSessionControls(),
+      current: serializeCurrentGrammarQuiz(),
+      open: Boolean(state.grammarQuizOpen),
+    };
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch (_err) {
+    // Best-effort session persistence; do not block learning flow.
+  }
+}
+
+function applySavedControlState(saved) {
+  if (!saved || typeof saved !== "object") return;
+
+  const vocabFilters = saved.vocab?.filters || {};
+  setSelectValue("vocab-level-filter", vocabFilters.level);
+  setSelectValue("vocab-level-mode", vocabFilters.levelMode);
+  refreshVocabRadicalFilter();
+  setSelectValue("vocab-radical-filter", vocabFilters.radical);
+  setInputValue("vocab-search", vocabFilters.search);
+  setCheckboxValue("vocab-show-pinyin", vocabFilters.showPinyin);
+  setCheckboxValue("vocab-only-unlearned", vocabFilters.onlyUnlearned);
+  setInputValue("vocab-col-word", vocabFilters.colWord);
+  setInputValue("vocab-col-pinyin", vocabFilters.colPinyin);
+  setInputValue("vocab-col-meaning", vocabFilters.colMeaning);
+  setSelectValue("vocab-col-level", vocabFilters.colLevel);
+  setInputValue("vocab-col-freq-min", vocabFilters.colFreqMin);
+  setInputValue("vocab-col-freq-max", vocabFilters.colFreqMax);
+  setInputValue("vocab-col-radical", vocabFilters.colRadical);
+  setSelectValue("vocab-col-mastered", vocabFilters.colMastered);
+  setInputValue("vocab-mastered-search", vocabFilters.masteredSearch);
+  setSelectValue("vocab-flash-mode", saved.vocab?.mode || "continue");
+
+  const quizControls = saved.quiz?.controls || {};
+  setSelectValue("quiz-mode", quizControls.mode);
+  setSelectValue("quiz-level", quizControls.level);
+  refreshQuizRadicalFilter();
+  setSelectValue("quiz-radical-filter", quizControls.radicalFilter);
+  setSelectValue("quiz-session-mode", saved.quiz?.mode || "continue");
+
+  const grammarControls = saved.grammar?.controls || {};
+  setSelectValue("grammar-level-filter", grammarControls.level);
+  setSelectValue("grammar-level-mode", grammarControls.mode);
+  setInputValue("grammar-search", grammarControls.search);
+  setCheckboxValue("grammar-only-unlearned", grammarControls.onlyUnlearned);
+  setCheckboxValue("grammar-show-pinyin", grammarControls.showPinyin);
+  setSelectValue("grammar-quiz-mode", saved.grammar?.mode || "continue");
+}
+
+function restoreRuntimeSessionState(saved) {
+  if (!saved || typeof saved !== "object") return;
+
+  state.vocab.flashMode = saved.vocab?.mode === "restart" ? "restart" : "continue";
+  state.vocab.flashHistory = asStringArray(saved.vocab?.historyIds);
+  state.vocab.flashIndex = Number.isFinite(Number(saved.vocab?.historyIndex))
+    ? Number(saved.vocab.historyIndex)
+    : -1;
+  state.vocab.flashQueue = asStringArray(saved.vocab?.queueIds);
+  state.vocab.flashBack = Boolean(saved.vocab?.flashBack);
+  state.vocab.flashOpen = Boolean(saved.vocab?.flashOpen);
+
+  state.quizSession.sessionMode = saved.quiz?.mode === "restart" ? "restart" : "continue";
+  state.quizSession.sessionKey = (saved.quiz?.sessionKey || "").toString();
+  state.quizSession.queue = asStringArray(saved.quiz?.queueIds);
+
+  state.grammarSession.sessionMode =
+    saved.grammar?.mode === "restart" ? "restart" : "continue";
+  state.grammarSession.sessionKey = (saved.grammar?.sessionKey || "").toString();
+  state.grammarSession.queue = asStringArray(saved.grammar?.queueIds);
+
+  const quizCurrent = saved.quiz?.current || null;
+  if (quizCurrent && quizCurrent.promptId) {
+    state.currentQuiz = buildQuizQuestionFromPromptId(
+      quizCurrent.mode || readValue("quiz-mode", "radical-mc"),
+      readValue("quiz-level", "all"),
+      readValue("quiz-radical-filter", "all"),
+      quizCurrent.promptId,
+      quizCurrent.optionIds || null
+    );
+  } else {
+    state.currentQuiz = null;
+  }
+
+  const grammarCurrent = saved.grammar?.current || null;
+  if (grammarCurrent && grammarCurrent.promptId) {
+    state.currentGrammarQuiz = buildGrammarQuizQuestionFromPromptId(
+      readValue("grammar-level-filter", "all"),
+      readValue("grammar-level-mode", "exact"),
+      grammarCurrent.promptId,
+      grammarCurrent.optionIds || null
+    );
+  } else {
+    state.currentGrammarQuiz = null;
+  }
+
+  renderVocabulary(true);
+  renderQuizQuestion();
+  renderGrammar();
+
+  if (state.currentGrammarQuiz && saved.grammar?.open) {
+    openGrammarQuizModal();
+    renderGrammarQuizQuestion();
+  } else {
+    state.grammarQuizOpen = false;
+    document.getElementById("grammar-quiz-modal").classList.add("hidden");
+    syncModalBodyLock();
+  }
+
+  saveStudySession();
+}
+
+function restoreStudySessionState(saved = loadStudySession()) {
+  applySavedControlState(saved);
+  restoreRuntimeSessionState(saved);
+}
+
 function setupTabSwitching() {
   const nav = document.getElementById("main-nav");
   nav.addEventListener("click", (e) => {
@@ -2138,17 +2967,26 @@ function setupEventHandlers() {
     document.getElementById(id).addEventListener("change", () => {
       refreshQuizRadicalFilter();
       state.currentQuiz = null;
+      state.quizSession.sessionKey = "";
+      state.quizSession.queue = [];
       renderQuizQuestion();
     });
   });
 
   document.getElementById("quiz-radical-filter").addEventListener("change", () => {
     state.currentQuiz = null;
+    state.quizSession.sessionKey = "";
+    state.quizSession.queue = [];
     renderQuizQuestion();
   });
 
+  document.getElementById("quiz-session-mode").addEventListener("change", () => {
+    state.quizSession.sessionMode = getSelectedQuizSessionMode();
+    saveStudySession();
+  });
+
   document.getElementById("quiz-start").addEventListener("click", () => {
-    newQuizQuestion();
+    startQuizSession();
   });
 
   document.getElementById("quiz-options").addEventListener("click", (e) => {
@@ -2176,6 +3014,15 @@ function setupEventHandlers() {
     });
   });
 
+  document.getElementById("vocab-flash-mode").addEventListener("change", () => {
+    state.vocab.flashMode = getSelectedVocabFlashMode();
+    if (state.vocab.flashOpen) {
+      openVocabFlashcards();
+    } else {
+      renderVocabulary();
+    }
+  });
+
   ["vocab-radical-filter", "vocab-search", "vocab-show-pinyin", "vocab-only-unlearned"].forEach((id) => {
     document.getElementById(id).addEventListener("input", () => renderVocabulary(true));
     document.getElementById(id).addEventListener("change", () => renderVocabulary(true));
@@ -2198,6 +3045,12 @@ function setupEventHandlers() {
   document.getElementById("vocab-clear-col-filters").addEventListener("click", () => {
     clearVocabColumnFilters();
     renderVocabulary(true);
+  });
+  document.getElementById("vocab-mastered-refresh").addEventListener("click", () => {
+    renderVocabMasteredBox();
+  });
+  document.getElementById("vocab-mastered-search").addEventListener("input", () => {
+    renderVocabMasteredBox();
   });
 
   document.getElementById("vocab-flash-start").addEventListener("click", () => {
@@ -2272,6 +3125,18 @@ function setupEventHandlers() {
     const word = findWordById(btn.dataset.vocabAudioId);
     speakVocabWord(word);
   });
+  document.getElementById("vocab-mastered-list").addEventListener("click", (e) => {
+    const restoreBtn = e.target.closest("button[data-mastered-restore-id]");
+    if (restoreBtn) {
+      toggleVocabMastery(restoreBtn.dataset.masteredRestoreId, false);
+      return;
+    }
+    const audioBtn = e.target.closest("button[data-mastered-audio-id]");
+    if (audioBtn) {
+      const word = findWordById(audioBtn.dataset.masteredAudioId);
+      speakVocabWord(word);
+    }
+  });
 
   document.getElementById("vocab-prev-page").addEventListener("click", () => {
     state.vocab.page = Math.max(1, state.vocab.page - 1);
@@ -2288,6 +3153,15 @@ function setupEventHandlers() {
     document.getElementById(id).addEventListener("change", renderGrammar);
   });
 
+  ["grammar-level-filter", "grammar-level-mode"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", () => {
+      state.grammarSession.sessionKey = "";
+      state.grammarSession.queue = [];
+      state.currentGrammarQuiz = null;
+      saveStudySession();
+    });
+  });
+
   document.getElementById("grammar-list").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-grammar-id]");
     if (!input) return;
@@ -2295,10 +3169,14 @@ function setupEventHandlers() {
   });
 
   document.getElementById("grammar-quiz-start").addEventListener("click", () => {
-    newGrammarQuizQuestion();
+    startGrammarQuizSession();
   });
   document.getElementById("grammar-quiz-next").addEventListener("click", () => {
     newGrammarQuizQuestion();
+  });
+  document.getElementById("grammar-quiz-mode").addEventListener("change", () => {
+    state.grammarSession.sessionMode = getSelectedGrammarQuizMode();
+    saveStudySession();
   });
   document.getElementById("grammar-quiz-close").addEventListener("click", () => {
     closeGrammarQuizModal();
@@ -2367,6 +3245,7 @@ function setupEventHandlers() {
 }
 
 async function init() {
+  const savedStudySession = loadStudySession();
   state.progress = loadProgress();
   setupPwaLifecycle();
   const failed = await loadAllData();
@@ -2381,6 +3260,7 @@ async function init() {
   setupEventHandlers();
   activateInitialTabFromUrl();
   renderAll();
+  restoreStudySessionState(savedStudySession);
   await registerServiceWorker();
 
   if (failed.length) {
