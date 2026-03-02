@@ -180,6 +180,7 @@ const state = {
     grammar: [],
     meta: null,
   },
+  dataLoadFailures: [],
   progress: null,
   currentQuiz: null,
   currentGrammarQuiz: null,
@@ -2866,6 +2867,34 @@ function refreshHeaderPills() {
   document.getElementById("pill-radical-count").textContent = `${state.data.radicals.length} radicals`;
   document.getElementById("pill-word-count").textContent = `${allWords().length.toLocaleString()} words`;
   document.getElementById("pill-grammar-count").textContent = `${state.data.grammar.length} grammar points`;
+  updateDataStatusPill();
+}
+
+function updateDataStatusPill() {
+  const pill = document.getElementById("pill-data-status");
+  if (!pill) return;
+
+  const failed = Array.isArray(state.dataLoadFailures) ? state.dataLoadFailures : [];
+  if (failed.length) {
+    pill.textContent = `Data issue: ${failed.join(", ")}`;
+    pill.classList.remove("ok");
+    pill.classList.add("warn");
+    return;
+  }
+
+  pill.textContent = `Data loaded: R${state.data.radicals.length} · W${allWords().length.toLocaleString()} · G${state.data.grammar.length}`;
+  pill.classList.remove("warn");
+  pill.classList.add("ok");
+}
+
+function resetFiltersAndSession() {
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch (_err) {
+    // Keep going even if storage is unavailable.
+  }
+  restoreStudySessionState(defaultStudySession());
+  showToast("Đã reset bộ lọc và phiên học.");
 }
 
 function isStandaloneMode() {
@@ -3239,6 +3268,24 @@ function setupTabSwitching() {
 }
 
 function setupEventHandlers() {
+  const safeBind = (id, eventName, handler) => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    el.addEventListener(eventName, handler);
+    return true;
+  };
+
+  // Bind mastered-box toggles first so they still work even if later handlers fail.
+  safeBind("quiz-mastered-toggle", "click", () => {
+    toggleMasteredBox("quiz");
+  });
+  safeBind("vocab-mastered-toggle", "click", () => {
+    toggleMasteredBox("vocab");
+  });
+  safeBind("grammar-mastered-toggle", "click", () => {
+    toggleMasteredBox("grammar");
+  });
+
   [
     "radical-level-filter",
     "radical-view-mode",
@@ -3301,9 +3348,6 @@ function setupEventHandlers() {
     saveStudySession();
   });
 
-  document.getElementById("quiz-mastered-toggle").addEventListener("click", () => {
-    toggleMasteredBox("quiz");
-  });
   document.getElementById("quiz-mastered-refresh").addEventListener("click", () => {
     renderQuizMasteredBox();
   });
@@ -3373,9 +3417,6 @@ function setupEventHandlers() {
   document.getElementById("vocab-clear-col-filters").addEventListener("click", () => {
     clearVocabColumnFilters();
     renderVocabulary(true);
-  });
-  document.getElementById("vocab-mastered-toggle").addEventListener("click", () => {
-    toggleMasteredBox("vocab");
   });
   document.getElementById("vocab-mastered-refresh").addEventListener("click", () => {
     renderVocabMasteredBox();
@@ -3544,9 +3585,6 @@ function setupEventHandlers() {
     updateGrammarQueueBadge();
     saveStudySession();
   });
-  document.getElementById("grammar-mastered-toggle").addEventListener("click", () => {
-    toggleMasteredBox("grammar");
-  });
   document.getElementById("grammar-mastered-refresh").addEventListener("click", () => {
     renderGrammarMasteredBox();
   });
@@ -3615,6 +3653,10 @@ function setupEventHandlers() {
     promptInstall();
   });
 
+  safeBind("reset-session-btn", "click", () => {
+    resetFiltersAndSession();
+  });
+
   document.getElementById("update-reload-btn").addEventListener("click", () => {
     const reg = state.pwa.registration;
     if (reg && reg.waiting) {
@@ -3631,6 +3673,7 @@ async function init() {
   state.progress = loadProgress();
   setupPwaLifecycle();
   const failed = await loadAllData();
+  state.dataLoadFailures = failed;
 
   buildLevelOptions(document.getElementById("radical-level-filter"));
   buildLevelOptions(document.getElementById("vocab-level-filter"));

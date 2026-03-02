@@ -34,7 +34,9 @@
         <span class="pill" id="pill-radical-count">246 radicals</span>
         <span class="pill" id="pill-word-count">10,969 words</span>
         <span class="pill" id="pill-grammar-count">570 grammar points</span>
+        <span class="pill" id="pill-data-status">Data: loading...</span>
         <span class="pill" id="pill-network-status">Online</span>
+        <button class="btn btn-secondary" id="reset-session-btn">Reset Filters/Session</button>
         <button class="btn btn-secondary hidden" id="install-app-btn">Install App</button>
       </div>
     </header>
@@ -312,13 +314,13 @@
             <div class="quiz-topline">
               <h3>Grammar Quick Quiz</h3>
               <div class="quiz-inline-actions">
-                <label class="session-mode-inline">
-                  Session mode
+                <div class="session-mode-inline">
+                  <span class="session-mode-label">Session mode</span>
                   <select id="grammar-quiz-mode">
                     <option value="continue">Continue session</option>
                     <option value="restart">Restart from beginning</option>
                   </select>
-                </label>
+                </div>
                 <button id="grammar-quiz-start" class="btn">Start / Resume</button>
                 <button id="grammar-mastered-toggle" class="btn btn-secondary">Show Mastered Box</button>
               </div>

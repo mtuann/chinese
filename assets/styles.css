@@ -117,6 +117,16 @@ h4 {
   color: #b91c1c;
 }
 
+#pill-data-status.ok {
+  border-color: #86d1c5;
+  color: #0f766e;
+}
+
+#pill-data-status.warn {
+  border-color: #f0b6b6;
+  color: #b91c1c;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -434,9 +444,23 @@ input[type="number"] {
 }
 
 .session-mode-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   margin: 0;
-  min-width: 210px;
-  gap: 0.2rem;
+  min-width: 300px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.session-mode-label {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.session-mode-inline select {
+  min-width: 220px;
+  min-height: 2.22rem;
 }
 
 .queue-badge {
@@ -1144,6 +1168,11 @@ input[type="number"] {
   }
 
   .session-mode-inline {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .session-mode-inline select {
     min-width: 0;
     width: 100%;
   }
