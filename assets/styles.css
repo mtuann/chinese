@@ -857,6 +857,28 @@ input[type="number"] {
   padding: 1rem;
 }
 
+.vocab-flash-panel.flash-modal-card::before {
+  display: none;
+}
+
+.flash-pinyin-toggle {
+  align-self: start;
+  border: 1px solid #eadfca;
+  border-radius: 0.7rem;
+  padding: 0.42rem 0.58rem;
+  background: #fffdf8;
+}
+
+.vocab-flash-panel > .timer-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.vocab-flash-panel > .timer-actions .btn {
+  width: 100%;
+}
+
 .flash-card {
   border: 0;
   background: none;

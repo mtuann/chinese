@@ -582,7 +582,7 @@ function setInputValue(id, value) {
 
 function setCheckboxValue(id, checked) {
   const el = document.getElementById(id);
-  if (!el) return false;
+  if (!el || checked === undefined || checked === null) return false;
   el.checked = Boolean(checked);
   return true;
 }
@@ -1971,6 +1971,11 @@ function autoSpeakFlashcard() {
 }
 
 function openVocabFlashcards() {
+  const flashPinyin = document.getElementById("vocab-flash-show-pinyin");
+  if (flashPinyin) {
+    // Keep flashcards readable by default even when list/table pinyin is hidden.
+    flashPinyin.checked = true;
+  }
   const selectedMode = getSelectedVocabFlashMode();
   const keepSession = state.vocab.flashMode === selectedMode && selectedMode === "continue";
   state.vocab.flashMode = selectedMode;
@@ -2071,7 +2076,7 @@ function renderVocabFlashcard() {
   const back = document.getElementById("vocab-flash-back");
   const masteredBtn = document.getElementById("vocab-flash-mastered");
   const replayBtn = document.getElementById("vocab-flash-replay");
-  const showPinyin = document.getElementById("vocab-show-pinyin").checked;
+  const showPinyin = readChecked("vocab-flash-show-pinyin", true);
 
   startBtn.textContent = "Open Flashcards";
   modal.classList.toggle("hidden", !state.vocab.flashOpen);
@@ -3792,6 +3797,9 @@ function setupEventHandlers() {
   });
   document.getElementById("vocab-flash-card").addEventListener("click", () => {
     flipVocabFlashcard();
+  });
+  document.getElementById("vocab-flash-show-pinyin").addEventListener("change", () => {
+    renderVocabFlashcard();
   });
   document.getElementById("vocab-flash-mastered").addEventListener("click", () => {
     toggleCurrentFlashWordMastery();
